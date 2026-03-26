@@ -1,0 +1,24 @@
+{
+  "extends": "@repo/typescript-config/nestjs.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "baseUrl": ".",
+    "paths": {
+      "@lince/types": ["../../packages/types/src"],
+      "@lince/database": ["../../packages/database/src"],
+      "@lince/auth": ["../../packages/auth/src"],
+      "@lince/conciliaciones": ["../../packages/conciliaciones/src"],
+      "@lince/crm": ["../../packages/crm/src"]
+    }
+  },
+  "references": [
+    { "path": "../../packages/types" },
+    { "path": "../../packages/database" },
+    { "path": "../../packages/auth" },
+    { "path": "../../packages/conciliaciones" },
+    { "path": "../../packages/crm" }
+  ],
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}

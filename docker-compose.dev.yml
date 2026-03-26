@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lince-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lince
+      POSTGRES_PASSWORD: lince_dev_2024
+      POSTGRES_DB: lince_platform
+    ports:
+      - '5433:5432'
+    volumes:
+      - lince_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  lince_postgres_data:

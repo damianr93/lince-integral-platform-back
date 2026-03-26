@@ -1,0 +1,1 @@
+{"version":3,"file":"external-token.guard.d.ts","sourceRoot":"","sources":["external-token.guard.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,WAAW,EAAE,gBAAgB,EAAqC,MAAM,gBAAgB,CAAC;AAClG,OAAO,EAAE,aAAa,EAAE,MAAM,gBAAgB,CAAC;AAG/C,qBACa,kBAAmB,YAAW,WAAW;IACxC,OAAO,CAAC,QAAQ,CAAC,MAAM;gBAAN,MAAM,EAAE,aAAa;IAElD,WAAW,CAAC,OAAO,EAAE,gBAAgB,GAAG,OAAO;CAWhD"}
