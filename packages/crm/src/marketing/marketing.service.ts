@@ -80,11 +80,11 @@ export class MarketingService {
   }
 
   async findAll(): Promise<Campaign[]> {
-    return this.campaignModel.find().sort({ createdAt: -1 }).lean() as unknown as Campaign[];
+    return this.campaignModel.find().sort({ createdAt: -1 }).exec();
   }
 
   async findById(id: string): Promise<Campaign> {
-    const campaign = await this.campaignModel.findById(id).lean() as unknown as Campaign | null;
+    const campaign = await this.campaignModel.findById(id).exec();
     if (!campaign) throw new NotFoundException(`Campaña ${id} no encontrada`);
     return campaign;
   }
@@ -93,7 +93,17 @@ export class MarketingService {
     return this.recipientModel
       .find({ campaignId: new Types.ObjectId(campaignId) })
       .sort({ createdAt: 1 })
-      .lean() as unknown as CampaignRecipient[];
+      .exec();
+  }
+
+  async remove(id: string): Promise<void> {
+    const campaign = await this.campaignModel.findById(id).exec();
+    if (!campaign) throw new NotFoundException(`Campaña ${id} no encontrada`);
+    if (campaign.status !== 'DRAFT') {
+      throw new BadRequestException('Solo se pueden eliminar campañas en estado DRAFT');
+    }
+    await this.campaignModel.deleteOne({ _id: campaign._id });
+    await this.recipientModel.deleteMany({ campaignId: campaign._id });
   }
 
   // ─── Ejecución ────────────────────────────────────────────────────────────

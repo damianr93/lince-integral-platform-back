@@ -1,8 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   RawBodyRequest,
@@ -60,6 +63,14 @@ export class MarketingController {
   @RequireModule(ModuleKey.MARKETING)
   execute(@Param('id') id: string) {
     return this.marketingService.execute(id);
+  }
+
+  @Delete('campaigns/:id')
+  @UseGuards(JwtAuthGuard, ModuleGuard)
+  @RequireModule(ModuleKey.MARKETING)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param('id') id: string) {
+    return this.marketingService.remove(id);
   }
 
   @Get('campaigns/:id/recipients')
