@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.turbo
+**/*.tsbuildinfo
+.git
+.gitignore
+*.md
+coverage
+.env
+.env.*
+docker-compose*.yml
