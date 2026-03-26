@@ -20,4 +20,4 @@ RUN pnpm build
 
 ENV NODE_ENV=production
 EXPOSE 3000
-CMD ["node", "apps/api/dist/main.js"]
+CMD ["sh", "-c", "node apps/api/dist/migrate.js && node apps/api/dist/main.js"]

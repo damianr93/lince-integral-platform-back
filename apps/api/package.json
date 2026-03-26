@@ -9,7 +9,11 @@
     "dev": "ts-node-dev --respawn --transpile-only -r tsconfig-paths/register src/main.ts",
     "lint": "eslint src --ext .ts",
     "check-types": "tsc --noEmit",
-    "seed": "ts-node --transpile-only -r tsconfig-paths/register src/seed.ts"
+    "seed": "ts-node --transpile-only -r tsconfig-paths/register src/seed.ts",
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/data-source.ts",
+    "migration:run": "typeorm-ts-node-commonjs migration:run -d src/data-source.ts",
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/data-source.ts",
+    "migrate:prod": "node dist/migrate.js"
   },
   "dependencies": {
     "@lince/auth": "workspace:*",
