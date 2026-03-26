@@ -10,6 +10,11 @@ export class RecipientFilterDto {
   @IsArray()
   @IsString({ each: true })
   estado?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  producto?: string[];
 }
 
 export class CreateCampaignDto {

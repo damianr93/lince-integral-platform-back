@@ -10,6 +10,7 @@ export interface Campaign extends Document {
   recipientFilter: {
     siguiendo?: string[];
     estado?: string[];
+    producto?: string[];
   };
   totalRecipients: number;
   sentCount: number;
@@ -37,6 +38,7 @@ export const CampaignSchema = new Schema<Campaign>(
     recipientFilter: {
       siguiendo: [{ type: String }],
       estado: [{ type: String }],
+      producto: [{ type: String }],
     },
     totalRecipients: { type: Number, default: 0 },
     sentCount: { type: Number, default: 0 },

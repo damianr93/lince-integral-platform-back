@@ -52,6 +52,13 @@ export class MarketingController {
     return this.marketingService.getDirectMessages();
   }
 
+  @Get('filter-options')
+  @UseGuards(JwtAuthGuard, ModuleGuard)
+  @RequireModule(ModuleKey.MARKETING)
+  getFilterOptions() {
+    return this.marketingService.getFilterOptions();
+  }
+
   // ─── Campañas ───────────────────────────────────────────────────────────────
 
   @Get('campaigns')

@@ -62,6 +62,14 @@ export class MarketingService {
     return this.ycloud.listApprovedTemplates();
   }
 
+  async getFilterOptions(): Promise<{ productos: string[] }> {
+    const raw = await this.customerModel.distinct('producto');
+    const productos = (raw as (string | null | undefined)[])
+      .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+      .sort((a, b) => a.localeCompare(b, 'es'));
+    return { productos };
+  }
+
   // ─── Envío puntual ────────────────────────────────────────────────────────
 
   async sendSingle(dto: SendSingleDto, userId: string): Promise<{ messageId: string; to: string }> {
@@ -175,6 +183,9 @@ export class MarketingService {
     }
     if (campaign.recipientFilter?.estado?.length) {
       query['estado'] = { $in: campaign.recipientFilter.estado };
+    }
+    if ((campaign.recipientFilter as any)?.producto?.length) {
+      query['producto'] = { $in: (campaign.recipientFilter as any).producto };
     }
 
     const customers = await this.customerModel.find(query).lean() as unknown as Customer[];
