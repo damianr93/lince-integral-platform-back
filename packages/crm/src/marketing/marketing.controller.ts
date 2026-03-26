@@ -18,6 +18,7 @@ import { AuthUser, ModuleKey } from '@lince/types';
 import { MarketingService } from './marketing.service';
 import { YCloudClient } from './ycloud.client';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
+import { SendSingleDto } from './dto/send-single.dto';
 
 @Controller('marketing')
 export class MarketingController {
@@ -33,6 +34,15 @@ export class MarketingController {
   @RequireModule(ModuleKey.MARKETING)
   getTemplates() {
     return this.marketingService.getTemplates();
+  }
+
+  // ─── Envío puntual ─────────────────────────────────────────────────────────
+
+  @Post('send-single')
+  @UseGuards(JwtAuthGuard, ModuleGuard)
+  @RequireModule(ModuleKey.MARKETING)
+  sendSingle(@Body() dto: SendSingleDto) {
+    return this.marketingService.sendSingle(dto);
   }
 
   // ─── Campañas ───────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import { CampaignRecipient } from './schemas/campaign-recipient.schema';
 import { Customer } from '../customers/schemas/customer.schema';
 import { YCloudClient, YCloudError } from './ycloud.client';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
+import { SendSingleDto } from './dto/send-single.dto';
 
 const BATCH_SIZE = 20;
 const MAX_ATTEMPTS = 3;
@@ -56,6 +57,35 @@ export class MarketingService {
 
   async getTemplates() {
     return this.ycloud.listApprovedTemplates();
+  }
+
+  // ─── Envío puntual ────────────────────────────────────────────────────────
+
+  async sendSingle(dto: SendSingleDto): Promise<{ messageId: string; to: string }> {
+    const phone = this.normalizePhone(dto.phone);
+    if (!phone) {
+      throw new BadRequestException(`Número de teléfono inválido: "${dto.phone}"`);
+    }
+
+    const phoneNumberId = this.resolvePhoneNumberId(dto.advisor);
+    if (!phoneNumberId) {
+      throw new BadRequestException(
+        `No hay número de YCloud configurado para el asesor ${dto.advisor}`,
+      );
+    }
+
+    const result = await this.ycloud.sendTemplateMessage({
+      to: phone,
+      phoneNumberId,
+      templateName: dto.templateName,
+      templateLanguage: dto.templateLanguage,
+    });
+
+    this.logger.log(
+      `Envío puntual → ${phone} (${dto.advisor}) plantilla "${dto.templateName}" — YCloud ID: ${result.id}`,
+    );
+
+    return { messageId: result.id, to: phone };
   }
 
   // ─── CRUD campañas ────────────────────────────────────────────────────────
