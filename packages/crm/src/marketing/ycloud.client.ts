@@ -84,8 +84,11 @@ export class YCloudClient {
     const body = {
       from: params.phoneNumberId,
       to: params.to,
-      templateName: params.templateName,
-      templateLanguage: params.templateLanguage,
+      type: 'template',
+      template: {
+        name: params.templateName,
+        language: { code: params.templateLanguage },
+      },
       ...(params.externalId ? { externalId: params.externalId } : {}),
     };
 
