@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, HttpException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -74,18 +74,24 @@ export class MarketingService {
       );
     }
 
-    const result = await this.ycloud.sendTemplateMessage({
-      to: phone,
-      phoneNumberId,
-      templateName: dto.templateName,
-      templateLanguage: dto.templateLanguage,
-    });
+    try {
+      const result = await this.ycloud.sendTemplateMessage({
+        to: phone,
+        phoneNumberId,
+        templateName: dto.templateName,
+        templateLanguage: dto.templateLanguage,
+      });
 
-    this.logger.log(
-      `Envío puntual → ${phone} (${dto.advisor}) plantilla "${dto.templateName}" — YCloud ID: ${result.id}`,
-    );
+      this.logger.log(
+        `Envío puntual → ${phone} (${dto.advisor}) plantilla "${dto.templateName}" — YCloud ID: ${result.id}`,
+      );
 
-    return { messageId: result.id, to: phone };
+      return { messageId: result.id, to: phone };
+    } catch (err: any) {
+      const status = err?.status ?? 500;
+      const message = err?.message ?? 'Error al enviar el mensaje por YCloud';
+      throw new HttpException({ message, code: err?.code }, status);
+    }
   }
 
   // ─── CRUD campañas ────────────────────────────────────────────────────────
