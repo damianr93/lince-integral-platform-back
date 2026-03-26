@@ -5,7 +5,11 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true,
+  });
+  app.useBodyParser('json', { limit: '10mb' });
+  app.useBodyParser('urlencoded', { limit: '10mb', extended: true });
 
   // CORS — acepta origenes de la variable de entorno
   const allowedOrigins = (process.env['ALLOWED_ORIGINS'] ?? 'http://localhost:5173')
