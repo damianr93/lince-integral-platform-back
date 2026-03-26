@@ -28,7 +28,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
       // Log 5xx errors with full stack so they're visible in the console
       this.logger.error(
         `[${request.method}] ${request.url} → ${status}`,
-        exception instanceof Error ? exception.stack : String(exception),
+        exception instanceof Error
+          ? exception.stack
+          : JSON.stringify(exception),
       );
     } else {
       // Log 4xx as simple warn (validation errors, not found, etc.)

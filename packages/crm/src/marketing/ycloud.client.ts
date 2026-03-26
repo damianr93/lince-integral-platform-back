@@ -82,8 +82,8 @@ export class YCloudClient {
     externalId?: string;
   }): Promise<YCloudSendResult> {
     const body = {
+      from: params.phoneNumberId,
       to: params.to,
-      phoneNumberId: params.phoneNumberId,
       templateName: params.templateName,
       templateLanguage: params.templateLanguage,
       ...(params.externalId ? { externalId: params.externalId } : {}),
