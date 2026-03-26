@@ -5,6 +5,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model, Types } from 'mongoose';
 import { Campaign, CampaignStatus } from './schemas/campaign.schema';
 import { CampaignRecipient } from './schemas/campaign-recipient.schema';
+import { DirectMessage } from './schemas/direct-message.schema';
 import { Customer } from '../customers/schemas/customer.schema';
 import { YCloudClient, YCloudError } from './ycloud.client';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
@@ -22,6 +23,8 @@ export class MarketingService {
     private readonly campaignModel: Model<Campaign>,
     @InjectModel('CampaignRecipient')
     private readonly recipientModel: Model<CampaignRecipient>,
+    @InjectModel('DirectMessage')
+    private readonly directMessageModel: Model<DirectMessage>,
     @InjectModel('Customer')
     private readonly customerModel: Model<Customer>,
     private readonly ycloud: YCloudClient,
@@ -61,7 +64,7 @@ export class MarketingService {
 
   // ─── Envío puntual ────────────────────────────────────────────────────────
 
-  async sendSingle(dto: SendSingleDto): Promise<{ messageId: string; to: string }> {
+  async sendSingle(dto: SendSingleDto, userId: string): Promise<{ messageId: string; to: string }> {
     const phone = this.normalizePhone(dto.phone);
     if (!phone) {
       throw new BadRequestException(`Número de teléfono inválido: "${dto.phone}"`);
@@ -82,16 +85,30 @@ export class MarketingService {
         templateLanguage: dto.templateLanguage,
       });
 
+      await this.directMessageModel.create({
+        phone,
+        advisor: dto.advisor,
+        templateName: dto.templateName,
+        templateLanguage: dto.templateLanguage,
+        yCloudMessageId: result.id,
+        sentBy: userId,
+      });
+
       this.logger.log(
         `Envío puntual → ${phone} (${dto.advisor}) plantilla "${dto.templateName}" — YCloud ID: ${result.id}`,
       );
 
       return { messageId: result.id, to: phone };
     } catch (err: any) {
-      const status = err?.status ?? 500;
-      const message = err?.message ?? 'Error al enviar el mensaje por YCloud';
-      throw new HttpException({ message, code: err?.code }, status);
+      if (err instanceof BadRequestException || err instanceof HttpException) throw err;
+      const status = (err?.status >= 400) ? err.status : 500;
+      const message: string = err?.message ?? 'Error al enviar el mensaje por YCloud';
+      throw new HttpException(message, status);
     }
+  }
+
+  async getDirectMessages(): Promise<DirectMessage[]> {
+    return this.directMessageModel.find().sort({ createdAt: -1 }).limit(200).exec();
   }
 
   // ─── CRUD campañas ────────────────────────────────────────────────────────

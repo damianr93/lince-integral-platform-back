@@ -41,8 +41,15 @@ export class MarketingController {
   @Post('send-single')
   @UseGuards(JwtAuthGuard, ModuleGuard)
   @RequireModule(ModuleKey.MARKETING)
-  sendSingle(@Body() dto: SendSingleDto) {
-    return this.marketingService.sendSingle(dto);
+  sendSingle(@Body() dto: SendSingleDto, @CurrentUser() user: AuthUser) {
+    return this.marketingService.sendSingle(dto, user.id);
+  }
+
+  @Get('direct-messages')
+  @UseGuards(JwtAuthGuard, ModuleGuard)
+  @RequireModule(ModuleKey.MARKETING)
+  getDirectMessages() {
+    return this.marketingService.getDirectMessages();
   }
 
   // ─── Campañas ───────────────────────────────────────────────────────────────
