@@ -13,6 +13,7 @@ export interface CampaignRecipient extends Document {
   yCloudMessageId?: string;
   skipReason?: string;
   errorMessage?: string;
+  waveNumber?: number;
   attempts: number;
   retryAfter?: Date;
   sentAt?: Date;
@@ -37,6 +38,7 @@ export const CampaignRecipientSchema = new Schema<CampaignRecipient>(
     yCloudMessageId: { type: String },
     skipReason: { type: String },
     errorMessage: { type: String },
+    waveNumber: { type: Number },
     attempts: { type: Number, default: 0 },
     retryAfter: { type: Date },
     sentAt: { type: Date },

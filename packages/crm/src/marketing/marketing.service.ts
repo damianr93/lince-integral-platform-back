@@ -3,8 +3,9 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model, Types } from 'mongoose';
-import { Campaign, CampaignStatus } from './schemas/campaign.schema';
+import { Campaign, CampaignStatus, CampaignWave } from './schemas/campaign.schema';
 import { CampaignRecipient } from './schemas/campaign-recipient.schema';
+import { CampaignLog, LogEvent, LogLevel } from './schemas/campaign-log.schema';
 import { DirectMessage } from './schemas/direct-message.schema';
 import { Customer } from '../customers/schemas/customer.schema';
 import { YCloudClient, YCloudError } from './ycloud.client';
@@ -23,6 +24,8 @@ export class MarketingService {
     private readonly campaignModel: Model<Campaign>,
     @InjectModel('CampaignRecipient')
     private readonly recipientModel: Model<CampaignRecipient>,
+    @InjectModel('CampaignLog')
+    private readonly logModel: Model<CampaignLog>,
     @InjectModel('DirectMessage')
     private readonly directMessageModel: Model<DirectMessage>,
     @InjectModel('Customer')
@@ -59,7 +62,24 @@ export class MarketingService {
   // ─── Listado de templates ─────────────────────────────────────────────────
 
   async getTemplates() {
-    return this.ycloud.listApprovedTemplates();
+    const templates = await this.ycloud.listApprovedTemplates();
+
+    // Reverse map: wabaId → advisor name
+    const wabaToAdvisor: Record<string, string> = {};
+    const advisors = [
+      { key: 'YCLOUD_WABA_ID_EZEQUIEL', label: 'Ezequiel' },
+      { key: 'YCLOUD_WABA_ID_DENIS', label: 'Denis' },
+      { key: 'YCLOUD_WABA_ID_MARTIN', label: 'Martin' },
+    ];
+    for (const { key, label } of advisors) {
+      const id = this.config.get<string>(key, '').trim();
+      if (id) wabaToAdvisor[id] = label;
+    }
+
+    return templates.map((t) => ({
+      ...t,
+      channelLabel: wabaToAdvisor[t.wabaId] ?? null,
+    }));
   }
 
   async getFilterOptions(): Promise<{ productos: string[] }> {
@@ -68,6 +88,111 @@ export class MarketingService {
       .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
       .sort((a, b) => a.localeCompare(b, 'es'));
     return { productos };
+  }
+
+  // ─── Preview de destinatarios (sin persistir) ─────────────────────────────
+
+  private async buildPreviewItems(filter: { siguiendo?: string[]; estado?: string[]; producto?: string[] }) {
+    const query: Record<string, any> = {};
+    if (filter.siguiendo?.length) query['siguiendo'] = { $in: filter.siguiendo };
+    if (filter.estado?.length) query['estado'] = { $in: filter.estado };
+    if (filter.producto?.length) query['producto'] = { $in: filter.producto };
+
+    const customers = await this.customerModel
+      .find(query)
+      .select('nombre apellido telefono siguiendo estado producto')
+      .lean() as unknown as Customer[];
+
+    return customers.map((customer) => {
+      const phone = this.normalizePhone(customer.telefono);
+      const siguiendo = customer.siguiendo ?? 'SIN_ASIGNAR';
+      const phoneNumberId = this.resolvePhoneNumberId(siguiendo);
+      const willSend = !!phone && !!phoneNumberId;
+
+      let skipReason: string | undefined;
+      if (!phone) skipReason = 'Sin teléfono válido';
+      else if (!phoneNumberId) {
+        skipReason = siguiendo === 'SIN_ASIGNAR'
+          ? 'Sin asesor asignado'
+          : `Sin canal YCloud para ${siguiendo}`;
+      }
+
+      return {
+        customerId: String(customer._id),
+        customerName: [customer.nombre, customer.apellido].filter(Boolean).join(' ') || '—',
+        customerPhone: phone ?? customer.telefono ?? '',
+        siguiendo,
+        phoneNumberId: phoneNumberId ?? '',
+        estado: customer.estado ?? '',
+        producto: (customer as any).producto ?? '',
+        willSend,
+        skipReason,
+      };
+    });
+  }
+
+  async previewByFilter(filter: { siguiendo?: string[]; estado?: string[]; producto?: string[] }) {
+    return this.buildPreviewItems(filter);
+  }
+
+  async previewCampaign(campaignId: string) {
+    const campaign = await this.campaignModel.findById(campaignId);
+    if (!campaign) throw new NotFoundException(`Campaña ${campaignId} no encontrada`);
+    return this.buildPreviewItems({
+      siguiendo: campaign.recipientFilter?.siguiendo,
+      estado: campaign.recipientFilter?.estado,
+      producto: (campaign.recipientFilter as any)?.producto,
+    });
+  }
+
+  private async countEligibleWillSend(filter: {
+    siguiendo?: string[];
+    estado?: string[];
+    producto?: string[];
+  }): Promise<number> {
+    const preview = await this.buildPreviewItems(filter);
+    return preview.filter((p) => p.willSend).length;
+  }
+
+  private buildWaveDocuments(waves: { scheduledAt: Date; recipientCount: number }[]) {
+    return waves.map((w, i) => ({
+      waveNumber: i + 1,
+      scheduledAt: w.scheduledAt,
+      recipientCount: w.recipientCount,
+      status: 'SCHEDULED' as const,
+      sentCount: 0,
+      failedCount: 0,
+    }));
+  }
+
+  private async assertWavesMatchEligibleRecipients(
+    waves: { scheduledAt: Date; recipientCount: number }[],
+    filter: { siguiendo?: string[]; estado?: string[]; producto?: string[] },
+  ): Promise<void> {
+    if (!waves.length) {
+      throw new BadRequestException('Debe definir al menos una oleada');
+    }
+    if (waves.length > 3) {
+      throw new BadRequestException('Máximo 3 oleadas');
+    }
+    for (const w of waves) {
+      if (!Number.isFinite(w.recipientCount) || w.recipientCount < 1) {
+        throw new BadRequestException('Cada oleada debe tener al menos 1 destinatario');
+      }
+      if (Number.isNaN(w.scheduledAt.getTime())) {
+        throw new BadRequestException('Fecha y hora de oleada inválida');
+      }
+    }
+    const eligible = await this.countEligibleWillSend(filter);
+    const sum = waves.reduce((s, w) => s + w.recipientCount, 0);
+    if (eligible === 0) {
+      throw new BadRequestException('No hay destinatarios elegibles para enviar con los filtros actuales');
+    }
+    if (sum !== eligible) {
+      throw new BadRequestException(
+        `La suma de destinatarios por oleada (${sum}) debe coincidir con los elegibles para envío (${eligible})`,
+      );
+    }
   }
 
   // ─── Envío puntual ────────────────────────────────────────────────────────
@@ -91,6 +216,7 @@ export class MarketingService {
         phoneNumberId,
         templateName: dto.templateName,
         templateLanguage: dto.templateLanguage,
+        headerImageUrl: dto.templateHeaderImageUrl,
       });
 
       await this.directMessageModel.create({
@@ -122,11 +248,29 @@ export class MarketingService {
   // ─── CRUD campañas ────────────────────────────────────────────────────────
 
   async create(dto: CreateCampaignDto, userId: string): Promise<Campaign> {
+    const recipientFilter = dto.recipientFilter ?? {};
+    const filterForPreview = {
+      siguiendo: recipientFilter.siguiendo,
+      estado: recipientFilter.estado,
+      producto: recipientFilter.producto,
+    };
+
+    let wavesDoc: CampaignWave[] | undefined;
+    if (dto.waves?.length) {
+      const parsed = dto.waves.map((w) => ({
+        scheduledAt: new Date(w.scheduledAt),
+        recipientCount: w.recipientCount,
+      }));
+      await this.assertWavesMatchEligibleRecipients(parsed, filterForPreview);
+      wavesDoc = this.buildWaveDocuments(parsed);
+    }
+
     const campaign = await this.campaignModel.create({
       name: dto.name,
       templateName: dto.templateName,
       templateLanguage: dto.templateLanguage,
-      recipientFilter: dto.recipientFilter ?? {},
+      templateHeaderImageUrl: dto.templateHeaderImageUrl,
+      recipientFilter,
       status: 'DRAFT',
       createdBy: userId,
       totalRecipients: 0,
@@ -134,6 +278,7 @@ export class MarketingService {
       failedCount: 0,
       skippedCount: 0,
       pendingCount: 0,
+      ...(wavesDoc ? { waves: wavesDoc } : {}),
     });
 
     this.logger.log(`Campaign created: ${campaign._id.toString()} — "${dto.name}"`);
@@ -165,6 +310,59 @@ export class MarketingService {
     }
     await this.campaignModel.deleteOne({ _id: campaign._id });
     await this.recipientModel.deleteMany({ campaignId: campaign._id });
+  }
+
+  // ─── Logging ──────────────────────────────────────────────────────────────
+
+  private writeLog(
+    campaignId: Types.ObjectId,
+    level: LogLevel,
+    event: LogEvent,
+    opts?: { waveNumber?: number; recipientPhone?: string; details?: string },
+  ): void {
+    // Fire-and-forget: no bloquea el flujo de envío
+    this.logModel.create({
+      campaignId,
+      level,
+      event,
+      waveNumber: opts?.waveNumber,
+      recipientPhone: opts?.recipientPhone,
+      details: opts?.details,
+    }).catch((err) => this.logger.error(`Failed to write campaign log: ${err}`));
+  }
+
+  async getLogs(campaignId: string): Promise<CampaignLog[]> {
+    return this.logModel
+      .find({ campaignId: new Types.ObjectId(campaignId) })
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .lean() as unknown as CampaignLog[];
+  }
+
+  // ─── Waves (envío en partes) ───────────────────────────────────────────────
+
+  async configureWaves(
+    campaignId: string,
+    waves: { scheduledAt: Date; recipientCount: number }[],
+  ): Promise<Campaign> {
+    const campaign = await this.campaignModel.findById(campaignId);
+    if (!campaign) throw new NotFoundException(`Campaña ${campaignId} no encontrada`);
+    if (campaign.status !== 'DRAFT') {
+      throw new BadRequestException('Solo se pueden configurar waves en campañas DRAFT');
+    }
+    await this.assertWavesMatchEligibleRecipients(waves, {
+      siguiendo: campaign.recipientFilter?.siguiendo,
+      estado: campaign.recipientFilter?.estado,
+      producto: (campaign.recipientFilter as any)?.producto,
+    });
+    const waveDocs = this.buildWaveDocuments(waves);
+
+    await this.campaignModel.updateOne(
+      { _id: campaign._id },
+      { $set: { waves: waveDocs } },
+    );
+
+    return this.findById(campaignId);
   }
 
   // ─── Ejecución ────────────────────────────────────────────────────────────
@@ -245,6 +443,23 @@ export class MarketingService {
       });
     }
 
+    // Distribuir recipients en waves si están configuradas
+    const waves = campaign.waves ?? [];
+    if (waves.length > 0) {
+      const pendingDocs = recipientDocs.filter((r) => r.status === 'PENDING');
+      let offset = 0;
+      for (const wave of waves) {
+        const slice = pendingDocs.slice(offset, offset + wave.recipientCount);
+        slice.forEach((r) => { r.waveNumber = wave.waveNumber; });
+        offset += wave.recipientCount;
+      }
+      // Los que sobran (si total > suma waves) van a la última wave
+      if (offset < pendingDocs.length) {
+        const lastWave = waves[waves.length - 1];
+        pendingDocs.slice(offset).forEach((r) => { r.waveNumber = lastWave.waveNumber; });
+      }
+    }
+
     await this.recipientModel.insertMany(recipientDocs);
 
     const pendingCount = recipientDocs.filter((r) => r.status === 'PENDING').length;
@@ -264,9 +479,16 @@ export class MarketingService {
       },
     );
 
+    const waveSummary = waves.length > 0
+      ? ` | ${waves.length} waves: ${waves.map(w => `wave${w.waveNumber} ${w.recipientCount} recipients @ ${w.scheduledAt.toISOString()}`).join(', ')}`
+      : '';
     this.logger.log(
-      `Campaign ${campaignId} queued: ${customers.length} recipients, ${pendingCount} pending, ${skippedCount} skipped`,
+      `Campaign ${campaignId} queued: ${customers.length} recipients, ${pendingCount} pending, ${skippedCount} skipped${waveSummary}`,
     );
+
+    this.writeLog(campaign._id as Types.ObjectId, 'INFO', 'CAMPAIGN_STARTED', {
+      details: `${pendingCount} para enviar, ${skippedCount} omitidos${waves.length > 0 ? `, ${waves.length} partes programadas` : ''}`,
+    });
 
     return this.findById(campaignId);
   }
@@ -287,26 +509,104 @@ export class MarketingService {
   private async processCampaignBatch(campaignId: Types.ObjectId): Promise<void> {
     const now = new Date();
 
-    const batch = await this.recipientModel
-      .find({
-        campaignId,
-        status: 'PENDING',
-        $or: [
-          { retryAfter: { $exists: false } },
-          { retryAfter: { $lte: now } },
-        ],
-      })
-      .sort({ createdAt: 1 })
-      .limit(BATCH_SIZE)
-      .lean() as unknown as CampaignRecipient[];
+    // Cargar la campaña una sola vez para todo el batch
+    const campaign = await this.campaignModel.findById(campaignId).lean() as unknown as Campaign | null;
+    if (!campaign) return;
 
-    if (batch.length === 0) {
-      await this.checkCampaignCompletion(campaignId);
-      return;
-    }
+    const waves = campaign.waves ?? [];
 
-    for (const recipient of batch) {
-      await this.sendToRecipient(recipient._id as Types.ObjectId, campaignId);
+    if (waves.length > 0) {
+      // ── Modo waves: activar waves cuya hora llegó ──────────────────────────
+      for (const wave of waves) {
+        if (wave.status === 'SCHEDULED' && new Date(wave.scheduledAt) <= now) {
+          await this.campaignModel.updateOne(
+            { _id: campaignId, 'waves.waveNumber': wave.waveNumber },
+            { $set: { 'waves.$.status': 'RUNNING', 'waves.$.startedAt': now } },
+          );
+          this.writeLog(campaignId, 'INFO', 'WAVE_STARTED', {
+            waveNumber: wave.waveNumber,
+            details: `Parte ${wave.waveNumber} iniciada — ${wave.recipientCount} destinatarios programados`,
+          });
+          this.logger.log(`Campaign ${campaignId}: wave ${wave.waveNumber} started`);
+        }
+      }
+
+      // Re-cargar para tener el estado actualizado de waves
+      const updatedCampaign = await this.campaignModel.findById(campaignId).lean() as unknown as Campaign;
+      const runningWaveNumbers = (updatedCampaign.waves ?? [])
+        .filter(w => w.status === 'RUNNING')
+        .map(w => w.waveNumber);
+
+      if (runningWaveNumbers.length === 0) {
+        // Ninguna wave activa todavía — verificar si todas completaron
+        await this.checkCampaignCompletion(campaignId);
+        return;
+      }
+
+      const batch = await this.recipientModel
+        .find({
+          campaignId,
+          status: 'PENDING',
+          waveNumber: { $in: runningWaveNumbers },
+          $or: [
+            { retryAfter: { $exists: false } },
+            { retryAfter: { $lte: now } },
+          ],
+        })
+        .sort({ waveNumber: 1, createdAt: 1 })
+        .limit(BATCH_SIZE)
+        .lean() as unknown as CampaignRecipient[];
+
+      if (batch.length === 0) {
+        // Waves en RUNNING pero sin pending: marcarlas como completadas
+        for (const waveNumber of runningWaveNumbers) {
+          const hasStillPending = await this.recipientModel.exists({
+            campaignId, waveNumber, status: 'PENDING',
+          });
+          if (!hasStillPending) {
+            const waveData = (updatedCampaign.waves ?? []).find(w => w.waveNumber === waveNumber);
+            await this.campaignModel.updateOne(
+              { _id: campaignId, 'waves.waveNumber': waveNumber },
+              { $set: { 'waves.$.status': 'COMPLETED', 'waves.$.completedAt': now } },
+            );
+            this.writeLog(campaignId, 'INFO', 'WAVE_COMPLETED', {
+              waveNumber,
+              details: `Parte ${waveNumber} completada — ${waveData?.sentCount ?? 0} enviados, ${waveData?.failedCount ?? 0} fallidos`,
+            });
+            this.logger.log(`Campaign ${campaignId}: wave ${waveNumber} completed`);
+          }
+        }
+        await this.checkCampaignCompletion(campaignId);
+        return;
+      }
+
+      for (const recipient of batch) {
+        await this.sendToRecipient(recipient._id as Types.ObjectId, updatedCampaign);
+      }
+
+    } else {
+      // ── Modo clásico: sin waves ────────────────────────────────────────────
+      const batch = await this.recipientModel
+        .find({
+          campaignId,
+          status: 'PENDING',
+          $or: [
+            { retryAfter: { $exists: false } },
+            { retryAfter: { $lte: now } },
+          ],
+        })
+        .sort({ createdAt: 1 })
+        .limit(BATCH_SIZE)
+        .lean() as unknown as CampaignRecipient[];
+
+      if (batch.length === 0) {
+        await this.checkCampaignCompletion(campaignId);
+        return;
+      }
+
+      for (const recipient of batch) {
+        await this.sendToRecipient(recipient._id as Types.ObjectId, campaign);
+      }
     }
 
     await this.checkCampaignCompletion(campaignId);
@@ -314,7 +614,7 @@ export class MarketingService {
 
   private async sendToRecipient(
     recipientId: Types.ObjectId,
-    campaignId: Types.ObjectId,
+    campaign: Campaign,
   ): Promise<void> {
     const recipient = await this.recipientModel.findById(recipientId);
     if (!recipient || recipient.status !== 'PENDING') return;
@@ -324,8 +624,7 @@ export class MarketingService {
       { $inc: { attempts: 1 } },
     );
 
-    const campaign = await this.campaignModel.findById(campaignId).lean() as unknown as Campaign | null;
-    if (!campaign) return;
+    const campaignId = campaign._id as Types.ObjectId;
 
     try {
       const result = await this.ycloud.sendTemplateMessage({
@@ -333,6 +632,7 @@ export class MarketingService {
         phoneNumberId: recipient.phoneNumberId,
         templateName: campaign.templateName,
         templateLanguage: campaign.templateLanguage,
+        headerImageUrl: campaign.templateHeaderImageUrl,
         externalId: recipient._id.toString(),
       });
 
@@ -348,11 +648,22 @@ export class MarketingService {
         },
       );
 
-      await this.campaignModel.updateOne(
-        { _id: campaignId },
-        { $inc: { sentCount: 1, pendingCount: -1 } },
-      );
+      // Actualizar contadores de campaign y wave
+      const waveInc: Record<string, any> = { sentCount: 1, pendingCount: -1 };
+      if (recipient.waveNumber != null) {
+        await this.campaignModel.updateOne(
+          { _id: campaignId, 'waves.waveNumber': recipient.waveNumber },
+          { $inc: { sentCount: 1, pendingCount: -1, 'waves.$.sentCount': 1 } },
+        );
+      } else {
+        await this.campaignModel.updateOne({ _id: campaignId }, { $inc: waveInc });
+      }
 
+      this.writeLog(campaignId, 'INFO', 'MESSAGE_SENT', {
+        waveNumber: recipient.waveNumber,
+        recipientPhone: recipient.customerPhone,
+        details: result.id,
+      });
       this.logger.log(
         `Sent to ${recipient.customerPhone} (campaign ${campaignId.toString()}) — YCloud ID: ${result.id}`,
       );
@@ -362,37 +673,39 @@ export class MarketingService {
       const attempts = (recipient.attempts ?? 0) + 1;
 
       if (isTransient && attempts < MAX_ATTEMPTS) {
-        // Exponential backoff: 2^attempts minutos
         const delayMs = Math.pow(2, attempts) * 60 * 1000;
         await this.recipientModel.updateOne(
           { _id: recipientId },
-          {
-            $set: {
-              retryAfter: new Date(Date.now() + delayMs),
-              errorMessage: ycloudErr.message,
-            },
-          },
+          { $set: { retryAfter: new Date(Date.now() + delayMs), errorMessage: ycloudErr.message } },
         );
+        this.writeLog(campaignId, 'WARN', 'MESSAGE_RETRY', {
+          waveNumber: recipient.waveNumber,
+          recipientPhone: recipient.customerPhone,
+          details: `Intento ${attempts}/${MAX_ATTEMPTS} — reintento en ${delayMs / 60000}min — ${ycloudErr.message}`,
+        });
         this.logger.warn(
           `Transient error for ${recipient.customerPhone}, retry in ${delayMs / 1000}s — ${ycloudErr.message}`,
         );
       } else {
         await this.recipientModel.updateOne(
           { _id: recipientId },
-          {
-            $set: {
-              status: 'FAILED',
-              errorMessage: ycloudErr?.message ?? String(err),
-              retryAfter: undefined,
-            },
-          },
+          { $set: { status: 'FAILED', errorMessage: ycloudErr?.message ?? String(err), retryAfter: undefined } },
         );
 
-        await this.campaignModel.updateOne(
-          { _id: campaignId },
-          { $inc: { failedCount: 1, pendingCount: -1 } },
-        );
+        if (recipient.waveNumber != null) {
+          await this.campaignModel.updateOne(
+            { _id: campaignId, 'waves.waveNumber': recipient.waveNumber },
+            { $inc: { failedCount: 1, pendingCount: -1, 'waves.$.failedCount': 1 } },
+          );
+        } else {
+          await this.campaignModel.updateOne({ _id: campaignId }, { $inc: { failedCount: 1, pendingCount: -1 } });
+        }
 
+        this.writeLog(campaignId, 'ERROR', 'MESSAGE_FAILED', {
+          waveNumber: recipient.waveNumber,
+          recipientPhone: recipient.customerPhone,
+          details: ycloudErr?.message ?? String(err),
+        });
         this.logger.error(
           `Permanent failure for ${recipient.customerPhone} (campaign ${campaignId.toString()}): ${ycloudErr?.message ?? err}`,
         );
@@ -417,6 +730,9 @@ export class MarketingService {
           { _id: campaignId },
           { $set: { status: 'COMPLETED', completedAt: new Date(), pendingCount: 0 } },
         );
+        this.writeLog(campaignId, 'INFO', 'CAMPAIGN_COMPLETED', {
+          details: 'Todos los mensajes procesados',
+        });
         this.logger.log(`Campaign ${campaignId.toString()} completed`);
       }
     }

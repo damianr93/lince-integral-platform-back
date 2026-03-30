@@ -64,5 +64,6 @@ Pasos:
 | Pendiente  | `packages/ocr` |
 | Pendiente  | Migraciones TypeORM para conciliaciones y OCR |
 | Pendiente  | Panel SUPERADMIN de gestión de usuarios (API ya tiene los endpoints) |
+| 2026-03-30 | Marketing: `POST /marketing/campaigns` acepta `waves` opcional; validación server-side (suma = destinatarios elegibles); wizard en `lince-web` con paso Oleadas |
 
 Ver `CONTEXT.md` en la raíz del proyecto para el panorama completo.

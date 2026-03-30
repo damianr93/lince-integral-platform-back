@@ -68,6 +68,13 @@ export class MarketingController {
     return this.marketingService.findAll();
   }
 
+  @Post('campaigns/preview')
+  @UseGuards(JwtAuthGuard, ModuleGuard)
+  @RequireModule(ModuleKey.MARKETING)
+  previewByFilter(@Body() body: { siguiendo?: string[]; estado?: string[]; producto?: string[] }) {
+    return this.marketingService.previewByFilter(body);
+  }
+
   @Get('campaigns/:id')
   @UseGuards(JwtAuthGuard, ModuleGuard)
   @RequireModule(ModuleKey.MARKETING)
@@ -97,11 +104,46 @@ export class MarketingController {
     return this.marketingService.remove(id);
   }
 
+  @Get('campaigns/:id/preview')
+  @UseGuards(JwtAuthGuard, ModuleGuard)
+  @RequireModule(ModuleKey.MARKETING)
+  previewCampaign(@Param('id') id: string) {
+    return this.marketingService.previewCampaign(id);
+  }
+
   @Get('campaigns/:id/recipients')
   @UseGuards(JwtAuthGuard, ModuleGuard)
   @RequireModule(ModuleKey.MARKETING)
   getRecipients(@Param('id') id: string) {
     return this.marketingService.getRecipients(id);
+  }
+
+  @Post('campaigns/:id/waves')
+  @UseGuards(JwtAuthGuard, ModuleGuard)
+  @RequireModule(ModuleKey.MARKETING)
+  configureWaves(
+    @Param('id') id: string,
+    @Body() body: { waves: { scheduledAt: string; recipientCount: number }[] },
+  ) {
+    return this.marketingService.configureWaves(
+      id,
+      body.waves.map((w) => ({ ...w, scheduledAt: new Date(w.scheduledAt) })),
+    );
+  }
+
+  @Get('campaigns/:id/waves')
+  @UseGuards(JwtAuthGuard, ModuleGuard)
+  @RequireModule(ModuleKey.MARKETING)
+  async getWaves(@Param('id') id: string) {
+    const campaign = await this.marketingService.findById(id);
+    return campaign.waves ?? [];
+  }
+
+  @Get('campaigns/:id/logs')
+  @UseGuards(JwtAuthGuard, ModuleGuard)
+  @RequireModule(ModuleKey.MARKETING)
+  getLogs(@Param('id') id: string) {
+    return this.marketingService.getLogs(id);
   }
 
   // ─── Webhook (sin auth JWT — validado por firma HMAC) ──────────────────────

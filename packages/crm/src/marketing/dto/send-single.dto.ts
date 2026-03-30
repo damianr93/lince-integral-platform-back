@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, IsIn, IsOptional } from 'class-validator';
 
 export class SendSingleDto {
   @IsString()
@@ -16,4 +16,8 @@ export class SendSingleDto {
   @IsString()
   @IsIn(['EZEQUIEL', 'DENIS', 'MARTIN'])
   advisor: 'EZEQUIEL' | 'DENIS' | 'MARTIN';
+
+  @IsOptional()
+  @IsString()
+  templateHeaderImageUrl?: string;
 }

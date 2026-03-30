@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule } from '@nestjs/config';
 import { CampaignSchema } from './schemas/campaign.schema';
 import { CampaignRecipientSchema } from './schemas/campaign-recipient.schema';
+import { CampaignLogSchema } from './schemas/campaign-log.schema';
 import { DirectMessageSchema } from './schemas/direct-message.schema';
 import { CustomerSchema } from '../customers/schemas/customer.schema';
 import { MarketingService } from './marketing.service';
@@ -15,6 +16,7 @@ import { YCloudClient } from './ycloud.client';
     MongooseModule.forFeature([
       { name: 'Campaign', schema: CampaignSchema },
       { name: 'CampaignRecipient', schema: CampaignRecipientSchema },
+      { name: 'CampaignLog', schema: CampaignLogSchema },
       { name: 'DirectMessage', schema: DirectMessageSchema },
       { name: 'Customer', schema: CustomerSchema },
     ]),
