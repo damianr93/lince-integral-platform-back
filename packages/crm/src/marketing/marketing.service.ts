@@ -365,6 +365,36 @@ export class MarketingService {
     return this.findById(campaignId);
   }
 
+  // ─── Reprogramar oleada ───────────────────────────────────────────────────
+
+  async rescheduleWave(campaignId: string, waveNumber: number, scheduledAt: Date): Promise<Campaign> {
+    const campaign = await this.campaignModel.findById(campaignId);
+    if (!campaign) throw new NotFoundException(`Campaña ${campaignId} no encontrada`);
+    if (campaign.status !== 'RUNNING') {
+      throw new BadRequestException('Solo se pueden reprogramar oleadas de campañas en ejecución');
+    }
+    const wave = (campaign.waves ?? []).find((w) => w.waveNumber === waveNumber);
+    if (!wave) throw new NotFoundException(`Oleada ${waveNumber} no encontrada`);
+    if (wave.status !== 'SCHEDULED') {
+      throw new BadRequestException(`Solo se pueden reprogramar oleadas en estado SCHEDULED (actual: ${wave.status})`);
+    }
+    if (Number.isNaN(scheduledAt.getTime())) {
+      throw new BadRequestException('Fecha y hora de oleada inválida');
+    }
+
+    await this.campaignModel.updateOne(
+      { _id: campaign._id, 'waves.waveNumber': waveNumber },
+      { $set: { 'waves.$.scheduledAt': scheduledAt } },
+    );
+
+    this.writeLog(campaign._id as Types.ObjectId, 'INFO', 'WAVE_RESCHEDULED', {
+      waveNumber,
+      details: `Oleada ${waveNumber} reprogramada para ${scheduledAt.toISOString()}`,
+    });
+
+    return this.findById(campaignId);
+  }
+
   // ─── Ejecución ────────────────────────────────────────────────────────────
 
   async execute(campaignId: string): Promise<Campaign> {

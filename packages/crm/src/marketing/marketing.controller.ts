@@ -7,6 +7,8 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseIntPipe,
+  Patch,
   Post,
   RawBodyRequest,
   Req,
@@ -137,6 +139,17 @@ export class MarketingController {
   async getWaves(@Param('id') id: string) {
     const campaign = await this.marketingService.findById(id);
     return campaign.waves ?? [];
+  }
+
+  @Patch('campaigns/:id/waves/:waveNumber/reschedule')
+  @UseGuards(JwtAuthGuard, ModuleGuard)
+  @RequireModule(ModuleKey.MARKETING)
+  rescheduleWave(
+    @Param('id') id: string,
+    @Param('waveNumber', ParseIntPipe) waveNumber: number,
+    @Body() body: { scheduledAt: string },
+  ) {
+    return this.marketingService.rescheduleWave(id, waveNumber, new Date(body.scheduledAt));
   }
 
   @Get('campaigns/:id/logs')

@@ -7,6 +7,7 @@ export type LogEvent =
   | 'WAVE_STARTED'
   | 'WAVE_COMPLETED'
   | 'WAVE_FAILED'
+  | 'WAVE_RESCHEDULED'
   | 'MESSAGE_SENT'
   | 'MESSAGE_FAILED'
   | 'MESSAGE_RETRY';
