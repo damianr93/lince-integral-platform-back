@@ -28,7 +28,7 @@ export const CampaignRecipientSchema = new Schema<CampaignRecipient>(
     customerName: { type: String },
     customerPhone: { type: String, required: true },
     siguiendo: { type: String, required: true },
-    phoneNumberId: { type: String, required: true },
+    phoneNumberId: { type: String, required: false, default: '' },
     status: {
       type: String,
       enum: ['PENDING', 'SENT', 'FAILED', 'SKIPPED'],
