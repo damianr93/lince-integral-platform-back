@@ -365,6 +365,105 @@ export class MarketingService {
     return this.findById(campaignId);
   }
 
+  // ─── Reconfigurar oleadas programadas (RUNNING) ──────────────────────────
+
+  async reconfigureScheduledWaves(
+    campaignId: string,
+    newWaves: { scheduledAt: Date; recipientCount: number }[],
+  ): Promise<Campaign> {
+    const campaign = await this.campaignModel.findById(campaignId);
+    if (!campaign) throw new NotFoundException(`Campaña ${campaignId} no encontrada`);
+    if (campaign.status !== 'RUNNING') {
+      throw new BadRequestException('Solo se pueden reconfigurar oleadas de campañas en ejecución');
+    }
+
+    const existingWaves = campaign.waves ?? [];
+    const scheduledWaves = existingWaves.filter((w) => w.status === 'SCHEDULED');
+    if (scheduledWaves.length === 0) {
+      throw new BadRequestException('No hay oleadas programadas para reconfigurar');
+    }
+    if (newWaves.length === 0) {
+      throw new BadRequestException('Debe definir al menos una oleada');
+    }
+
+    // Validaciones básicas
+    for (const w of newWaves) {
+      if (!Number.isFinite(w.recipientCount) || w.recipientCount < 1) {
+        throw new BadRequestException('Cada oleada debe tener al menos 1 destinatario');
+      }
+      if (Number.isNaN(w.scheduledAt.getTime())) {
+        throw new BadRequestException('Fecha y hora de oleada inválida');
+      }
+    }
+
+    // Contar pending en las waves SCHEDULED actuales
+    const scheduledWaveNumbers = scheduledWaves.map((w) => w.waveNumber);
+    const pendingCount = await this.recipientModel.countDocuments({
+      campaignId: campaign._id,
+      status: 'PENDING',
+      waveNumber: { $in: scheduledWaveNumbers },
+    });
+
+    const sumNew = newWaves.reduce((s, w) => s + w.recipientCount, 0);
+    if (sumNew !== pendingCount) {
+      throw new BadRequestException(
+        `La suma de destinatarios (${sumNew}) debe coincidir con los pendientes en oleadas programadas (${pendingCount})`,
+      );
+    }
+
+    // Obtener recipients pendientes ordenados para redistribuir
+    const pendingRecipients = await this.recipientModel
+      .find({
+        campaignId: campaign._id,
+        status: 'PENDING',
+        waveNumber: { $in: scheduledWaveNumbers },
+      })
+      .sort({ createdAt: 1 })
+      .lean() as unknown as CampaignRecipient[];
+
+    // Calcular el waveNumber base para nuevas waves (después del max existente)
+    const maxExistingWave = Math.max(...existingWaves.map((w) => w.waveNumber));
+
+    // Construir nuevas wave docs reutilizando números de las SCHEDULED actuales
+    // y asignando nuevos números para oleadas adicionales
+    const availableNumbers = [...scheduledWaveNumbers].sort((a, b) => a - b);
+    const newWaveDocs = newWaves.map((w, i) => ({
+      waveNumber: availableNumbers[i] ?? maxExistingWave + (i - availableNumbers.length + 1),
+      scheduledAt: w.scheduledAt,
+      recipientCount: w.recipientCount,
+      status: 'SCHEDULED' as const,
+      sentCount: 0,
+      failedCount: 0,
+    }));
+
+    // Redistribuir waveNumber en recipients
+    let offset = 0;
+    for (const wavDoc of newWaveDocs) {
+      const slice = pendingRecipients.slice(offset, offset + wavDoc.recipientCount);
+      if (slice.length > 0) {
+        const ids = slice.map((r) => r._id);
+        await this.recipientModel.updateMany(
+          { _id: { $in: ids } },
+          { $set: { waveNumber: wavDoc.waveNumber } },
+        );
+      }
+      offset += wavDoc.recipientCount;
+    }
+
+    // Reemplazar waves SCHEDULED en el documento de campaña
+    const keptWaves = existingWaves.filter((w) => w.status !== 'SCHEDULED');
+    await this.campaignModel.updateOne(
+      { _id: campaign._id },
+      { $set: { waves: [...keptWaves, ...newWaveDocs] } },
+    );
+
+    this.writeLog(campaign._id as Types.ObjectId, 'INFO', 'WAVE_RESCHEDULED', {
+      details: `Oleadas programadas reconfiguradas: ${newWaveDocs.length} oleadas, ${pendingCount} destinatarios redistribuidos`,
+    });
+
+    return this.findById(campaignId);
+  }
+
   // ─── Reprogramar oleada ───────────────────────────────────────────────────
 
   async rescheduleWave(campaignId: string, waveNumber: number, scheduledAt: Date): Promise<Campaign> {

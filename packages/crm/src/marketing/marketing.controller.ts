@@ -141,6 +141,19 @@ export class MarketingController {
     return campaign.waves ?? [];
   }
 
+  @Patch('campaigns/:id/waves/reconfigure')
+  @UseGuards(JwtAuthGuard, ModuleGuard)
+  @RequireModule(ModuleKey.MARKETING)
+  reconfigureScheduledWaves(
+    @Param('id') id: string,
+    @Body() body: { waves: { scheduledAt: string; recipientCount: number }[] },
+  ) {
+    return this.marketingService.reconfigureScheduledWaves(
+      id,
+      body.waves.map((w) => ({ scheduledAt: new Date(w.scheduledAt), recipientCount: w.recipientCount })),
+    );
+  }
+
   @Patch('campaigns/:id/waves/:waveNumber/reschedule')
   @UseGuards(JwtAuthGuard, ModuleGuard)
   @RequireModule(ModuleKey.MARKETING)
