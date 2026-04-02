@@ -5,6 +5,7 @@ import { buildDataSourceOptions, AreaEntity } from '@lince/database';
 import { AuthModule } from '@lince/auth';
 import { CrmModule } from '@lince/crm';
 import { ConciliacionesModule, conciliacionesEntities } from '@lince/conciliaciones';
+import { OcrModule, ocrEntities } from '@lince/ocr';
 import { UsersModule } from './users/users.module';
 import { AreasModule } from './areas/areas.module';
 
@@ -23,7 +24,7 @@ import { AreasModule } from './areas/areas.module';
       useFactory: (config: ConfigService) =>
         buildDataSourceOptions(
           config.getOrThrow<string>('DATABASE_URL'),
-          [...conciliacionesEntities, AreaEntity],
+          [...conciliacionesEntities, ...ocrEntities, AreaEntity],
         ),
     }),
 
@@ -41,6 +42,9 @@ import { AreasModule } from './areas/areas.module';
 
     // Módulo Conciliaciones bancarias
     ConciliacionesModule,
+
+    // Módulo OCR (remitos + facturas + Google Vision + S3)
+    OcrModule,
   ],
 })
 export class AppModule {}

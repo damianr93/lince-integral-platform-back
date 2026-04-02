@@ -65,5 +65,6 @@ Pasos:
 | Pendiente  | Migraciones TypeORM para conciliaciones y OCR |
 | Pendiente  | Panel SUPERADMIN de gestión de usuarios (API ya tiene los endpoints) |
 | 2026-03-30 | Marketing: `POST /marketing/campaigns` acepta `waves` opcional; validación server-side (suma = destinatarios elegibles); wizard en `lince-web` con paso Oleadas |
+| 2026-04-02 | Frontend `lince-web` (OCR): modo demo con datos ficticios post-OCR en Dashboard admin y en Facturas; marcas `DEMO-OCR-MOCK` en código para retirarlo cuando deje de usarse en ventas |
 
 Ver `CONTEXT.md` en la raíz del proyecto para el panorama completo.

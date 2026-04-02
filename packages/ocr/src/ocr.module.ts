@@ -1,0 +1,21 @@
+/**
+ * OcrModule — Módulo raíz del sistema OCR
+ *
+ * Integra todos los submódulos:
+ *  - DocumentsModule  → CRUD + upload flow + aprobaciones
+ *  - StorageModule    → AWS S3 presigned URLs
+ *  - VisionModule     → Google Cloud Vision OCR
+ *  - OcrNotificationsModule → Emails transaccionales
+ *
+ * Para habilitar el módulo, agregar OcrModule en AppModule e incluir
+ * las entidades en buildDataSourceOptions() (ver apps/api/src/app.module.ts).
+ */
+
+import { Module } from '@nestjs/common';
+import { DocumentsModule } from './documents/documents.module';
+
+@Module({
+  imports: [DocumentsModule],
+  exports: [DocumentsModule],
+})
+export class OcrModule {}
