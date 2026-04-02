@@ -9,6 +9,7 @@ COPY packages/database/package.json ./packages/database/package.json
 COPY packages/auth/package.json ./packages/auth/package.json
 COPY packages/crm/package.json ./packages/crm/package.json
 COPY packages/conciliaciones/package.json ./packages/conciliaciones/package.json
+COPY packages/ocr/package.json ./packages/ocr/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 COPY packages/eslint-config/package.json ./packages/eslint-config/package.json
 COPY packages/typescript-config/package.json ./packages/typescript-config/package.json
