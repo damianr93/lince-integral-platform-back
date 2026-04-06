@@ -94,6 +94,7 @@ export class UsersController {
   /** Desactivar usuario (soft delete) — solo SUPERADMIN */
   @Delete(':id')
   @Roles(GlobalRole.SUPERADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     return this.usersService.remove(id);
   }

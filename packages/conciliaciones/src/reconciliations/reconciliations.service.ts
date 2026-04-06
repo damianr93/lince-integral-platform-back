@@ -415,14 +415,16 @@ export class ReconciliationsService {
     return this.runRepo.findOne({ where: { id: runId } });
   }
 
-  async deleteRun(runId: string, userId: string) {
-    await this.assertCanEdit(runId, userId);
+  async deleteRun(runId: string, userId: string, isSuperAdmin = false) {
+    if (!isSuperAdmin) {
+      await this.assertCanEdit(runId, userId);
+    }
     const run = await this.runRepo.findOne({
       where: { id: runId },
       select: { id: true, status: true },
     });
     if (!run) throw new NotFoundException('Run no encontrado');
-    if (run.status !== RunStatus.OPEN) {
+    if (!isSuperAdmin && run.status !== RunStatus.OPEN) {
       throw new ForbiddenException('Solo se puede borrar una conciliación abierta');
     }
     await this.dataSource.transaction(async (manager) => {

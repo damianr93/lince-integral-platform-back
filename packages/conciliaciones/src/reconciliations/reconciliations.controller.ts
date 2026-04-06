@@ -155,8 +155,8 @@ export class ReconciliationsController {
   }
 
   @Delete(':id')
-  async deleteRun(@Param('id') id: string, @Request() req: { user: { id: string } }) {
-    await this.service.deleteRun(id, req.user.id);
+  async deleteRun(@Param('id') id: string, @Request() req: { user: { id: string; globalRole: string } }) {
+    await this.service.deleteRun(id, req.user.id, req.user.globalRole === 'SUPERADMIN');
     return { deleted: true };
   }
 
