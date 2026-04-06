@@ -15,6 +15,15 @@ import { SendSingleDto } from './dto/send-single.dto';
 const BATCH_SIZE = 20;
 const MAX_ATTEMPTS = 3;
 
+const YCLOUD_ERROR_MESSAGES: Record<string, string> = {
+  PARAM_INVALID: 'Caracteres inválidos',
+  BALANCE_INSUFFICIENT: 'Fondos insuficientes',
+};
+
+function friendlyYCloudMessage(err: YCloudError): string {
+  return YCLOUD_ERROR_MESSAGES[err.code] ?? err.message;
+}
+
 @Injectable()
 export class MarketingService {
   private readonly logger = new Logger(MarketingService.name);
@@ -300,6 +309,51 @@ export class MarketingService {
       .find({ campaignId: new Types.ObjectId(campaignId) })
       .sort({ createdAt: 1 })
       .exec();
+  }
+
+  async retryRecipient(campaignId: string, recipientId: string): Promise<void> {
+    const recipient = await this.recipientModel.findOne({
+      _id: new Types.ObjectId(recipientId),
+      campaignId: new Types.ObjectId(campaignId),
+    });
+    if (!recipient) throw new NotFoundException('Destinatario no encontrado');
+    if (recipient.status !== 'FAILED') {
+      throw new BadRequestException('Solo se pueden reintentar destinatarios en estado FAILED');
+    }
+
+    await this.recipientModel.updateOne(
+      { _id: recipient._id },
+      { $set: { status: 'PENDING', errorMessage: undefined, retryAfter: undefined, attempts: 0 } },
+    );
+    await this.campaignModel.updateOne(
+      { _id: new Types.ObjectId(campaignId) },
+      { $inc: { failedCount: -1, pendingCount: 1 } },
+    );
+  }
+
+  async updateRecipientPhone(campaignId: string, recipientId: string, phone: string): Promise<void> {
+    const recipient = await this.recipientModel.findOne({
+      _id: new Types.ObjectId(recipientId),
+      campaignId: new Types.ObjectId(campaignId),
+    });
+    if (!recipient) throw new NotFoundException('Destinatario no encontrado');
+    if (recipient.status !== 'FAILED') {
+      throw new BadRequestException('Solo se puede editar el teléfono de destinatarios en estado FAILED');
+    }
+
+    // Validación básica de formato E.164
+    if (!/^\+\d{7,15}$/.test(phone)) {
+      throw new BadRequestException('El número debe estar en formato E.164 (ej: +5491122334455)');
+    }
+
+    await this.recipientModel.updateOne(
+      { _id: recipient._id },
+      { $set: { customerPhone: phone, status: 'PENDING', errorMessage: undefined, retryAfter: undefined, attempts: 0 } },
+    );
+    await this.campaignModel.updateOne(
+      { _id: new Types.ObjectId(campaignId) },
+      { $inc: { failedCount: -1, pendingCount: 1 } },
+    );
   }
 
   async remove(id: string): Promise<void> {
@@ -805,7 +859,7 @@ export class MarketingService {
         const delayMs = Math.pow(2, attempts) * 60 * 1000;
         await this.recipientModel.updateOne(
           { _id: recipientId },
-          { $set: { retryAfter: new Date(Date.now() + delayMs), errorMessage: ycloudErr.message } },
+          { $set: { retryAfter: new Date(Date.now() + delayMs), errorMessage: friendlyYCloudMessage(ycloudErr) } },
         );
         this.writeLog(campaignId, 'WARN', 'MESSAGE_RETRY', {
           waveNumber: recipient.waveNumber,
@@ -818,7 +872,7 @@ export class MarketingService {
       } else {
         await this.recipientModel.updateOne(
           { _id: recipientId },
-          { $set: { status: 'FAILED', errorMessage: ycloudErr?.message ?? String(err), retryAfter: undefined } },
+          { $set: { status: 'FAILED', errorMessage: ycloudErr ? friendlyYCloudMessage(ycloudErr) : String(err), retryAfter: undefined } },
         );
 
         if (recipient.waveNumber != null) {
@@ -849,15 +903,32 @@ export class MarketingService {
     });
 
     if (remaining === 0) {
-      const hasRunning = await this.campaignModel.findOne({
+      const campaign = await this.campaignModel.findOne({
         _id: campaignId,
         status: 'RUNNING',
       });
 
-      if (hasRunning) {
+      if (campaign) {
+        // Cerrar cualquier wave que quedó en RUNNING (puede ocurrir cuando el último
+        // batch se procesa sin pasar por el chequeo batch.length === 0)
+        const now = new Date();
+        for (const wave of (campaign.waves ?? [])) {
+          if (wave.status === 'RUNNING') {
+            await this.campaignModel.updateOne(
+              { _id: campaignId, 'waves.waveNumber': wave.waveNumber },
+              { $set: { 'waves.$.status': 'COMPLETED', 'waves.$.completedAt': now } },
+            );
+            this.writeLog(campaignId, 'INFO', 'WAVE_COMPLETED', {
+              waveNumber: wave.waveNumber,
+              details: `Parte ${wave.waveNumber} completada — ${wave.sentCount ?? 0} enviados, ${wave.failedCount ?? 0} fallidos`,
+            });
+            this.logger.log(`Campaign ${campaignId}: wave ${wave.waveNumber} completed (via campaign completion check)`);
+          }
+        }
+
         await this.campaignModel.updateOne(
           { _id: campaignId },
-          { $set: { status: 'COMPLETED', completedAt: new Date(), pendingCount: 0 } },
+          { $set: { status: 'COMPLETED', completedAt: now, pendingCount: 0 } },
         );
         this.writeLog(campaignId, 'INFO', 'CAMPAIGN_COMPLETED', {
           details: 'Todos los mensajes procesados',

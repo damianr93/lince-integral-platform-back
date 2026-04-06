@@ -165,6 +165,29 @@ export class MarketingController {
     return this.marketingService.rescheduleWave(id, waveNumber, new Date(body.scheduledAt));
   }
 
+  @Post('campaigns/:id/recipients/:recipientId/retry')
+  @UseGuards(JwtAuthGuard, ModuleGuard)
+  @RequireModule(ModuleKey.MARKETING)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  retryRecipient(
+    @Param('id') id: string,
+    @Param('recipientId') recipientId: string,
+  ) {
+    return this.marketingService.retryRecipient(id, recipientId);
+  }
+
+  @Patch('campaigns/:id/recipients/:recipientId/phone')
+  @UseGuards(JwtAuthGuard, ModuleGuard)
+  @RequireModule(ModuleKey.MARKETING)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  updateRecipientPhone(
+    @Param('id') id: string,
+    @Param('recipientId') recipientId: string,
+    @Body() body: { phone: string },
+  ) {
+    return this.marketingService.updateRecipientPhone(id, recipientId, body.phone);
+  }
+
   @Get('campaigns/:id/logs')
   @UseGuards(JwtAuthGuard, ModuleGuard)
   @RequireModule(ModuleKey.MARKETING)
