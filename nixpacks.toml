@@ -8,4 +8,4 @@ cmds = ["pnpm install --frozen-lockfile"]
 cmds = ["NODE_OPTIONS='--max-old-space-size=4096' pnpm build"]
 
 [start]
-cmd = "node --max-old-space-size=512 apps/api/dist/main.js"
+cmd = "node --max-old-space-size=1536 apps/api/dist/main.js"

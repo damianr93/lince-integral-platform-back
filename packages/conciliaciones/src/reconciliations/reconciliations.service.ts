@@ -37,6 +37,11 @@ import {
 } from './utils/normalize';
 import { matchOneToOne } from './utils/match';
 
+function omitRawCell<T extends { raw?: Record<string, unknown> }>(row: T): Omit<T, 'raw'> {
+  const { raw: _r, ...rest } = row;
+  return rest as Omit<T, 'raw'>;
+}
+
 @Injectable()
 export class ReconciliationsService {
   constructor(
@@ -365,7 +370,12 @@ export class ReconciliationsService {
     return {
       ...run,
       excludeConcepts: run.excludeConcepts ?? [],
-      extractLines: run.extractLines.filter((l) => !l.excluded),
+      extractLines: run.extractLines.filter((l) => !l.excluded).map(omitRawCell),
+      systemLines: run.systemLines.map(omitRawCell),
+      pendingItems: run.pendingItems.map((p) => ({
+        ...p,
+        systemLine: p.systemLine ? omitRawCell(p.systemLine) : null,
+      })),
       matches: matchesWithSameAmount,
       unmatchedExtract: [...baseUnmatchedExtract, ...extraUnmatchedExtract],
       unmatchedSystem: [...run.unmatchedSystem, ...extraUnmatchedSystem],
