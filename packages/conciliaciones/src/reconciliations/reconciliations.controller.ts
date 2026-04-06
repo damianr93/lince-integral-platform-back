@@ -40,9 +40,9 @@ export class ReconciliationsController {
   @Post()
   create(
     @Body() dto: CreateRunDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.createRun(dto, req.user.sub);
+    return this.service.createRun(dto, req.user.id);
   }
 
   @Get()
@@ -54,9 +54,9 @@ export class ReconciliationsController {
   createIssue(
     @Param('id') id: string,
     @Body() dto: CreateIssueDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.createIssue(id, req.user.sub, { title: dto.title, body: dto.body });
+    return this.service.createIssue(id, req.user.id, { title: dto.title, body: dto.body });
   }
 
   @Patch(':id/issues/:issueId')
@@ -64,9 +64,9 @@ export class ReconciliationsController {
     @Param('id') id: string,
     @Param('issueId') issueId: string,
     @Body() dto: UpdateIssueDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.updateIssue(id, issueId, req.user.sub, {
+    return this.service.updateIssue(id, issueId, req.user.id, {
       title: dto.title,
       body: dto.body,
     });
@@ -77,18 +77,18 @@ export class ReconciliationsController {
     @Param('id') id: string,
     @Param('issueId') issueId: string,
     @Body() dto: CreateIssueCommentDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.addIssueComment(issueId, req.user.sub, dto.body);
+    return this.service.addIssueComment(issueId, req.user.id, dto.body);
   }
 
   @Delete(':id/members/:userId')
   removeMember(
     @Param('id') id: string,
     @Param('userId') userId: string,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.removeMember(id, req.user.sub, userId);
+    return this.service.removeMember(id, req.user.id, userId);
   }
 
   @Get(':id')
@@ -102,61 +102,61 @@ export class ReconciliationsController {
   async updateSystem(
     @Param('id') id: string,
     @Body() dto: UpdateSystemDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    await this.service.assertCanEdit(id, req.user.sub);
-    return this.service.updateSystemData(id, req.user.sub, dto);
+    await this.service.assertCanEdit(id, req.user.id);
+    return this.service.updateSystemData(id, req.user.id, dto);
   }
 
   @Patch(':id/exclude-concept')
   addExcludedConcept(
     @Param('id') id: string,
     @Body() dto: AddExcludedConceptDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.addExcludedConcept(id, req.user.sub, dto.concept);
+    return this.service.addExcludedConcept(id, req.user.id, dto.concept);
   }
 
   @Patch(':id/exclude-concepts')
   addExcludedConcepts(
     @Param('id') id: string,
     @Body() dto: ExcludeManyDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.addExcludedConcepts(id, req.user.sub, dto.concepts);
+    return this.service.addExcludedConcepts(id, req.user.id, dto.concepts);
   }
 
   @Patch(':id/exclude-by-category')
   addExcludedByCategory(
     @Param('id') id: string,
     @Body() dto: ExcludeByCategoryDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.addExcludedByCategory(id, req.user.sub, dto.categoryId);
+    return this.service.addExcludedByCategory(id, req.user.id, dto.categoryId);
   }
 
   @Patch(':id/remove-excluded-concept')
   removeExcludedConcept(
     @Param('id') id: string,
     @Body() dto: RemoveExcludedConceptDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.removeExcludedConcept(id, req.user.sub, dto.concept);
+    return this.service.removeExcludedConcept(id, req.user.id, dto.concept);
   }
 
   @Patch(':id')
   async updateRun(
     @Param('id') id: string,
     @Body() body: { status?: RunStatus; bankName?: string; enabledCategoryIds?: string[] },
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    await this.service.assertCanEdit(id, req.user.sub);
-    return this.service.updateRun(id, req.user.sub, body);
+    await this.service.assertCanEdit(id, req.user.id);
+    return this.service.updateRun(id, req.user.id, body);
   }
 
   @Delete(':id')
-  async deleteRun(@Param('id') id: string, @Request() req: { user: { sub: string } }) {
-    await this.service.deleteRun(id, req.user.sub);
+  async deleteRun(@Param('id') id: string, @Request() req: { user: { id: string } }) {
+    await this.service.deleteRun(id, req.user.id);
     return { deleted: true };
   }
 
@@ -164,18 +164,18 @@ export class ReconciliationsController {
   share(
     @Param('id') id: string,
     @Body() dto: ShareRunDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.shareRun(id, req.user.sub, dto.email, dto.role);
+    return this.service.shareRun(id, req.user.id, dto.email, dto.role);
   }
 
   @Post(':id/messages')
   addMessage(
     @Param('id') id: string,
     @Body() dto: CreateMessageDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.addMessage(id, req.user.sub, dto.body);
+    return this.service.addMessage(id, req.user.id, dto.body);
   }
 
   @Post('parse')
@@ -190,10 +190,10 @@ export class ReconciliationsController {
   @Get(':id/export')
   async export(
     @Param('id') id: string,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
     @Res() res: Response,
   ) {
-    const buffer = await this.service.exportRun(id, req.user.sub);
+    const buffer = await this.service.exportRun(id, req.user.id);
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -206,9 +206,9 @@ export class ReconciliationsController {
   createPending(
     @Param('id') id: string,
     @Body() dto: CreatePendingDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.createPending(id, req.user.sub, dto);
+    return this.service.createPending(id, req.user.id, dto);
   }
 
   @Patch(':id/pending/:pendingId/resolve')
@@ -216,9 +216,9 @@ export class ReconciliationsController {
     @Param('id') id: string,
     @Param('pendingId') pendingId: string,
     @Body() dto: ResolvePendingDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.resolvePending(id, req.user.sub, pendingId, dto);
+    return this.service.resolvePending(id, req.user.id, pendingId, dto);
   }
 
   @Patch(':id/pending/:pendingId/status')
@@ -226,26 +226,26 @@ export class ReconciliationsController {
     @Param('id') id: string,
     @Param('pendingId') pendingId: string,
     @Body() body: { status: PendingStatus },
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.updatePendingStatus(id, req.user.sub, pendingId, body.status);
+    return this.service.updatePendingStatus(id, req.user.id, pendingId, body.status);
   }
 
   @Post(':id/match')
   setMatch(
     @Param('id') id: string,
     @Body() dto: SetMatchDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.setMatch(id, req.user.sub, dto.systemLineId, dto.extractLineIds);
+    return this.service.setMatch(id, req.user.id, dto.systemLineId, dto.extractLineIds);
   }
 
   @Post(':id/notify')
   notifyPending(
     @Param('id') id: string,
     @Body() dto: NotifyDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { id: string } },
   ) {
-    return this.service.notifyPending(id, req.user.sub, dto);
+    return this.service.notifyPending(id, req.user.id, dto);
   }
 }

@@ -207,9 +207,12 @@ export class YCloudClient {
     let parsed: Record<string, any> = {};
     try { parsed = JSON.parse(body); } catch { /* ok */ }
 
+    // YCloud wraps errors as { "error": { "code": "...", "message": "..." } }
+    const inner: Record<string, any> = parsed['error'] ?? parsed;
+
     return {
-      code: parsed['code'] ?? 'UNKNOWN',
-      message: parsed['message'] ?? body,
+      code: inner['code'] ?? 'UNKNOWN',
+      message: inner['message'] ?? body,
       status,
       isTransient: TRANSIENT_HTTP_STATUSES.has(status),
     };
