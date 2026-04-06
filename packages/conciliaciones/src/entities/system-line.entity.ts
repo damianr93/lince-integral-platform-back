@@ -30,7 +30,7 @@ export class SystemLineEntity {
   amount: number;
 
   @Column({ type: 'bigint', transformer: bigintTransformer })
-  amountKey: bigint;
+  amountKey: number;
 
   @Column({ type: 'varchar', nullable: true })
   description: string | null;

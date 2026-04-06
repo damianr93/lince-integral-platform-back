@@ -76,15 +76,14 @@ export function parseDate(value: unknown): Date | null {
   return null;
 }
 
-export function toAmountKey(amount: number, decimals = 2): bigint {
+export function toAmountKey(amount: number, decimals = 2): number {
   const factor = Math.pow(10, decimals);
-  return BigInt(Math.round(amount * factor));
+  return Math.round(amount * factor);
 }
 
-export function toAmountKeySafe(value: bigint | string | number): bigint {
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'string') return BigInt(value);
-  return BigInt(Math.round(Number(value)));
+export function toAmountKeySafe(value: number | string): number {
+  if (typeof value === 'string') return Math.round(Number(value));
+  return Math.round(value);
 }
 
 export function extractAmount(

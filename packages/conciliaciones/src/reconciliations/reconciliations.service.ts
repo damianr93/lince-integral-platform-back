@@ -88,7 +88,7 @@ export class ReconciliationsService {
       date: Date | null;
       concept: string | null;
       amount: number;
-      amountKey: bigint;
+      amountKey: number;
       raw: Record<string, unknown>;
       categoryId: string | null;
       excluded: boolean;
@@ -138,7 +138,7 @@ export class ReconciliationsService {
       issueDate: Date | null;
       dueDate: Date | null;
       amount: number;
-      amountKey: bigint;
+      amountKey: number;
       description: string | null;
       raw: Record<string, unknown>;
     }> = [];
@@ -214,14 +214,14 @@ export class ReconciliationsService {
       id: line.id,
       issueDate: line.issueDate ? new Date(line.issueDate) : null,
       dueDate: line.dueDate ? new Date(line.dueDate) : null,
-      amountKey: line.amountKey as bigint,
+      amountKey: line.amountKey,
       amount: line.amount,
       description: line.description ?? null,
     }));
     const extractForMatch = extractLines.map((line) => ({
       id: line.id,
       date: line.date ? new Date(line.date) : null,
-      amountKey: line.amountKey as bigint,
+      amountKey: line.amountKey,
     }));
 
     const { matches, usedExtract, usedSystem } = matchOneToOne(
@@ -664,7 +664,7 @@ export class ReconciliationsService {
     const toUpdate: Array<{
       id: string;
       amount: number;
-      amountKey: bigint;
+      amountKey: number;
       issueDate: Date | null;
       dueDate: Date | null;
       description: string | null;
@@ -677,7 +677,7 @@ export class ReconciliationsService {
       issueDate: Date | null;
       dueDate: Date | null;
       amount: number;
-      amountKey: bigint;
+      amountKey: number;
       description: string | null;
       raw: Record<string, unknown>;
     }> = [];
@@ -777,14 +777,14 @@ export class ReconciliationsService {
       id: line.id,
       issueDate: line.issueDate ? new Date(line.issueDate) : null,
       dueDate: line.dueDate ? new Date(line.dueDate) : null,
-      amountKey: line.amountKey as bigint,
+      amountKey: line.amountKey,
       amount: line.amount,
       description: line.description ?? null,
     }));
     const extractForMatch = extractLines.map((line) => ({
       id: line.id,
       date: line.date ? new Date(line.date) : null,
-      amountKey: line.amountKey as bigint,
+      amountKey: line.amountKey,
     }));
 
     const { matches, usedExtract, usedSystem } = matchOneToOne(

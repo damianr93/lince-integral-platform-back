@@ -4,14 +4,14 @@ import { toAmountKey, toAmountKeySafe } from './normalize';
 export type ExtractLine = {
   id: string;
   date: Date | null;
-  amountKey: bigint;
+  amountKey: number;
 };
 
 export type SystemLine = {
   id: string;
   issueDate: Date | null;
   dueDate: Date | null;
-  amountKey: bigint;
+  amountKey: number;
 };
 
 export type SystemLineWithDescription = SystemLine & { amount: number; description: string | null };
@@ -41,9 +41,9 @@ export function matchOneToOne(
   extractLines: ExtractLine[],
   windowDays: number,
 ) {
-  const extractByKey = new Map<bigint, ExtractLine[]>();
+  const extractByKey = new Map<number, ExtractLine[]>();
   for (const ext of extractLines) {
-    const key = toAmountKeySafe(ext.amountKey as bigint | string);
+    const key = toAmountKeySafe(ext.amountKey);
     const list = extractByKey.get(key) || [];
     list.push(ext);
     extractByKey.set(key, list);
@@ -55,7 +55,7 @@ export function matchOneToOne(
 
   for (const sys of systemLines) {
     if (usedSystem.has(sys.id)) continue;
-    const key = toAmountKeySafe(sys.amountKey as bigint | string);
+    const key = toAmountKeySafe(sys.amountKey);
     const pool = extractByKey.get(key) || [];
     let best: ExtractLine | null = null;
     let bestDelta = 0;
@@ -84,12 +84,13 @@ export function matchManyToOneByComment(
   usedExtract: Set<string>,
   usedSystem: Set<string>,
 ): MatchResult[] {
-  const extractByKey = new Map<bigint, ExtractLine[]>();
+  const extractByKey = new Map<number, ExtractLine[]>();
   for (const ext of extractLines) {
     if (usedExtract.has(ext.id)) continue;
-    const list = extractByKey.get(ext.amountKey) || [];
+    const key = toAmountKeySafe(ext.amountKey);
+    const list = extractByKey.get(key) || [];
     list.push(ext);
-    extractByKey.set(ext.amountKey, list);
+    extractByKey.set(key, list);
   }
 
   const byComment = new Map<string, SystemLineWithDescription[]>();

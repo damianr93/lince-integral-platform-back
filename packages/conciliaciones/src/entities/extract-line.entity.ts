@@ -27,7 +27,7 @@ export class ExtractLineEntity {
   amount: number;
 
   @Column({ type: 'bigint', transformer: bigintTransformer })
-  amountKey: bigint;
+  amountKey: number;
 
   @Column({ type: 'jsonb' })
   raw: Record<string, unknown>;
