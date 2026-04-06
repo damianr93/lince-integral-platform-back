@@ -5,6 +5,9 @@ import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 
+// BigInt no es serializable por JSON.stringify nativo; las columnas amountKey lo usan
+(BigInt.prototype as any).toJSON = function () { return this.toString(); };
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
