@@ -66,6 +66,6 @@ Pasos:
 | Pendiente  | Panel SUPERADMIN de gestión de usuarios (API ya tiene los endpoints) |
 | 2026-03-30 | Marketing: `POST /marketing/campaigns` acepta `waves` opcional; validación server-side (suma = destinatarios elegibles); wizard en `lince-web` con paso Oleadas |
 | 2026-04-02 | Frontend `lince-web` (OCR): modo demo con datos ficticios post-OCR en Dashboard admin y en Facturas; marcas `DEMO-OCR-MOCK` en código para retirarlo cuando deje de usarse en ventas |
-| 2026-04-06 | Conciliaciones: `getRun` no devuelve `raw` por línea (reduce memoria/JSON); Nixpacks runtime `max-old-space-size=1536` para runs grandes en Railway |
+| 2026-04-06 | Conciliaciones: `getRun` carga extract/system/pending **sin** columna `raw` (TypeORM `select`); respuesta sin `...run` duplicando relaciones; Nixpacks runtime heap 3072 MB |
 
 Ver `CONTEXT.md` en la raíz del proyecto para el panorama completo.

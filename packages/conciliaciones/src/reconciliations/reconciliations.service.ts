@@ -37,11 +37,6 @@ import {
 } from './utils/normalize';
 import { matchOneToOne } from './utils/match';
 
-function omitRawCell<T extends { raw?: Record<string, unknown> }>(row: T): Omit<T, 'raw'> {
-  const { raw: _r, ...rest } = row;
-  return rest as Omit<T, 'raw'>;
-}
-
 @Injectable()
 export class ReconciliationsService {
   constructor(
@@ -292,20 +287,70 @@ export class ReconciliationsService {
     const run = await this.runRepo.findOne({
       where: { id: runId },
       relations: {
-        extractLines: { category: true },
-        systemLines: true,
         matches: true,
         unmatchedExtract: true,
         unmatchedSystem: true,
         members: true,
         messages: true,
-        pendingItems: { systemLine: true },
         issues: { comments: true },
       },
     });
     if (!run) return null;
 
-    // Batch-load user info for all authorIds / createdByIds
+    const [extractLines, systemLines, pendingItems] = await Promise.all([
+      this.extractLineRepo.find({
+        where: { runId },
+        relations: { category: true },
+        select: {
+          id: true,
+          runId: true,
+          date: true,
+          concept: true,
+          amount: true,
+          amountKey: true,
+          categoryId: true,
+          excluded: true,
+          category: { id: true, name: true },
+        },
+      }),
+      this.systemLineRepo.find({
+        where: { runId },
+        select: {
+          id: true,
+          runId: true,
+          rowIndex: true,
+          issueDate: true,
+          dueDate: true,
+          amount: true,
+          amountKey: true,
+          description: true,
+        },
+      }),
+      this.pendingItemRepo.find({
+        where: { runId },
+        relations: { systemLine: true },
+        select: {
+          id: true,
+          runId: true,
+          area: true,
+          status: true,
+          resolvedAt: true,
+          note: true,
+          systemLineId: true,
+          systemLine: {
+            id: true,
+            runId: true,
+            rowIndex: true,
+            issueDate: true,
+            dueDate: true,
+            amount: true,
+            amountKey: true,
+            description: true,
+          },
+        },
+      }),
+    ]);
+
     const userIds = new Set<string>();
     userIds.add(run.createdById);
     for (const m of run.members) userIds.add(m.userId);
@@ -321,10 +366,10 @@ export class ReconciliationsService {
     const userMap = new Map(users.map((u) => [u.id, u]));
 
     const activeExtractIds = new Set(
-      run.extractLines.filter((l) => !l.excluded).map((l) => l.id),
+      extractLines.filter((l) => !l.excluded).map((l) => l.id),
     );
-    const extractAmountById = new Map(run.extractLines.map((l) => [l.id, l.amount]));
-    const systemAmountById = new Map(run.systemLines.map((l) => [l.id, l.amount]));
+    const extractAmountById = new Map(extractLines.map((l) => [l.id, l.amount]));
+    const systemAmountById = new Map(systemLines.map((l) => [l.id, l.amount]));
     const amountTolerance = 0.01;
     const matchesWithSameAmount = run.matches.filter((m) => {
       if (!activeExtractIds.has(m.extractLineId)) return false;
@@ -353,7 +398,7 @@ export class ReconciliationsService {
         extractLineId,
       }));
     const extraUnmatchedSystem = [...hiddenSystemIds].map((systemLineId) => {
-      const line = run.systemLines.find((l) => l.id === systemLineId);
+      const line = systemLines.find((l) => l.id === systemLineId);
       const dateToCompare = line?.dueDate ?? line?.issueDate ?? null;
       let status: UnmatchedSystemStatus = UnmatchedSystemStatus.DEFERRED;
       if (run.cutDate && dateToCompare && dateToCompare <= run.cutDate) {
@@ -367,15 +412,23 @@ export class ReconciliationsService {
       };
     });
 
+    const {
+      extractLines: _ex,
+      systemLines: _sy,
+      pendingItems: _pe,
+      ...runBase
+    } = run as ReconciliationRunEntity & {
+      extractLines?: ExtractLineEntity[];
+      systemLines?: SystemLineEntity[];
+      pendingItems?: PendingItemEntity[];
+    };
+
     return {
-      ...run,
+      ...runBase,
       excludeConcepts: run.excludeConcepts ?? [],
-      extractLines: run.extractLines.filter((l) => !l.excluded).map(omitRawCell),
-      systemLines: run.systemLines.map(omitRawCell),
-      pendingItems: run.pendingItems.map((p) => ({
-        ...p,
-        systemLine: p.systemLine ? omitRawCell(p.systemLine) : null,
-      })),
+      extractLines: extractLines.filter((l) => !l.excluded),
+      systemLines,
+      pendingItems,
       matches: matchesWithSameAmount,
       unmatchedExtract: [...baseUnmatchedExtract, ...extraUnmatchedExtract],
       unmatchedSystem: [...run.unmatchedSystem, ...extraUnmatchedSystem],
