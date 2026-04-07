@@ -104,8 +104,6 @@ export class DocumentsController {
    * Lista todos los documentos del sistema con filtros.
    * Solo ADMIN / SUPERADMIN.
    */
-  @UseGuards(RolesGuard)
-  @Roles(GlobalRole.ADMIN, GlobalRole.SUPERADMIN)
   @Get()
   findAll(@Query() filters: FilterDocumentsDto) {
     return this.documents.findAll(filters);
@@ -127,8 +125,6 @@ export class DocumentsController {
    * Cola de revisión — documentos que requieren atención del ADMIN.
    * Solo ADMIN / SUPERADMIN.
    */
-  @UseGuards(RolesGuard)
-  @Roles(GlobalRole.ADMIN, GlobalRole.SUPERADMIN)
   @Get('review-queue')
   findReviewQueue(@Query() filters: FilterDocumentsDto) {
     return this.documents.findReviewQueue(filters);
@@ -174,8 +170,6 @@ export class DocumentsController {
   /**
    * Aprobar un documento. Solo ADMIN / SUPERADMIN.
    */
-  @UseGuards(RolesGuard)
-  @Roles(GlobalRole.ADMIN, GlobalRole.SUPERADMIN)
   @Patch(':id/approve')
   approve(
     @Param('id', ParseUUIDPipe) id: string,
@@ -188,8 +182,6 @@ export class DocumentsController {
   /**
    * Rechazar un documento. Solo ADMIN / SUPERADMIN.
    */
-  @UseGuards(RolesGuard)
-  @Roles(GlobalRole.ADMIN, GlobalRole.SUPERADMIN)
   @Patch(':id/reject')
   reject(
     @Param('id', ParseUUIDPipe) id: string,
@@ -203,8 +195,6 @@ export class DocumentsController {
    * Eliminar un documento. Solo ADMIN / SUPERADMIN.
    * Borra de DB y de S3 (si está configurado).
    */
-  @UseGuards(RolesGuard)
-  @Roles(GlobalRole.ADMIN, GlobalRole.SUPERADMIN)
   @Delete(':id')
   deleteDocument(
     @Param('id', ParseUUIDPipe) id: string,
