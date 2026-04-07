@@ -32,6 +32,7 @@ export class ModuleGuard implements CanActivate {
       if (requiredModule === ModuleKey.OCR) return true;
       throw new ForbiddenException('El perfil TAG solo puede acceder a OCR remitos');
     }
+    if (requiredModule === ModuleKey.SOPORTE_IT) return true;
 
     const permission = user.modules[requiredModule as ModuleKey];
     if (!permission?.enabled) {
