@@ -28,12 +28,10 @@ export class ModuleGuard implements CanActivate {
     // SUPERADMIN accede a todo
     if (user.globalRole === GlobalRole.SUPERADMIN) return true;
 
-    // Usuario TAG: acceso exclusivo al módulo OCR.
-    if (user.area?.toUpperCase() === 'TAG' && requiredModule !== ModuleKey.OCR) {
+    if (user.area?.toUpperCase() === 'TAG') {
+      if (requiredModule === ModuleKey.OCR) return true;
       throw new ForbiddenException('El perfil TAG solo puede acceder a OCR remitos');
     }
-    // Soporte IT es acceso base para cualquier usuario autenticado.
-    if (requiredModule === ModuleKey.SOPORTE_IT) return true;
 
     const permission = user.modules[requiredModule as ModuleKey];
     if (!permission?.enabled) {
