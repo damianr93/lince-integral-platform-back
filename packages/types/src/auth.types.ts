@@ -11,6 +11,7 @@ export const ModuleKey = {
   CONCILIACIONES: 'conciliaciones',
   OCR: 'ocr',
   MARKETING: 'marketing',
+  SOPORTE_IT: 'soporte-it',
 } as const;
 
 export type ModuleKey = (typeof ModuleKey)[keyof typeof ModuleKey];
@@ -26,6 +27,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  area?: string | null;
   globalRole: GlobalRole;
   modules: UserModules;
   mustChangePassword: boolean;
@@ -34,6 +36,7 @@ export interface AuthUser {
 export interface JwtPayload {
   sub: string;
   email: string;
+  area?: string | null;
   globalRole: GlobalRole;
   modules: UserModules;
 }

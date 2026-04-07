@@ -67,5 +67,6 @@ Pasos:
 | 2026-03-30 | Marketing: `POST /marketing/campaigns` acepta `waves` opcional; validación server-side (suma = destinatarios elegibles); wizard en `lince-web` con paso Oleadas |
 | 2026-04-02 | Frontend `lince-web` (OCR): modo demo con datos ficticios post-OCR en Dashboard admin y en Facturas; marcas `DEMO-OCR-MOCK` en código para retirarlo cuando deje de usarse en ventas |
 | 2026-04-06 | Conciliaciones: `getRun` carga extract/system/pending **sin** columna `raw` (TypeORM `select`); respuesta sin `...run` duplicando relaciones; Nixpacks runtime heap 3072 MB |
+| 2026-04-07 | Política TAG: usuarios con `area=TAG` quedan restringidos a OCR remitos (redirigidos a `/ocr/remitos` y sin navegación general); backend bloquea módulos no OCR para TAG |
 
 Ver `CONTEXT.md` en la raíz del proyecto para el panorama completo.

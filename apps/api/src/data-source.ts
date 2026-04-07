@@ -6,11 +6,12 @@ dotenv.config();
 import { UserEntity, AreaEntity } from '@lince/database';
 import { conciliacionesEntities } from '@lince/conciliaciones';
 import { ocrEntities } from '@lince/ocr';
+import { soporteItEntities } from '@lince/soporte-it';
 
 export default new DataSource({
   type: 'postgres',
   url: process.env['DATABASE_URL'],
-  entities: [UserEntity, AreaEntity, ...conciliacionesEntities, ...ocrEntities],
+  entities: [UserEntity, AreaEntity, ...conciliacionesEntities, ...ocrEntities, ...soporteItEntities],
   migrations: [__dirname + '/migrations/*.{ts,js}'],
   synchronize: false,
   logging: ['error', 'warn', 'migration'],

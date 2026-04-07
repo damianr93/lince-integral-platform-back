@@ -33,6 +33,7 @@ export class AuthService {
         'id',
         'email',
         'name',
+        'area',
         'globalRole',
         'modules',
         'passwordHash',
@@ -54,6 +55,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       name: user.name,
+      area: user.area ?? null,
       globalRole: user.globalRole,
       modules: user.modules,
       mustChangePassword: user.mustChangePassword,
@@ -88,6 +90,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       name: user.name,
+      area: user.area ?? null,
       globalRole: user.globalRole,
       modules: user.modules,
       mustChangePassword: user.mustChangePassword,
@@ -106,6 +109,7 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
+      area: user.area ?? null,
       globalRole: user.globalRole,
       modules: user.modules,
     };
