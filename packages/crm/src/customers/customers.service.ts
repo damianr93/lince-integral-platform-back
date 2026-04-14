@@ -16,6 +16,27 @@ import { CustomerStatus } from '../follow-up/follow-up.types';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 
+// TODO-6 [MEDIO/DIFÍCIL]: Eliminar código duplicado — normalización de teléfonos.
+//
+// El problema: hay lógica de normalización de teléfonos argentinos escrita
+// tres veces en el proyecto. Código duplicado es un problema porque si hay
+// que corregir un bug o cambiar la lógica, hay que hacerlo en todos los lugares
+// y es fácil olvidarse de uno.
+//
+// Tu tarea:
+//   1. Encontrá las 3 implementaciones (pista: buscá "normalizePhone" y
+//      "normalizeArgentinePhone" en el proyecto con Ctrl+Shift+F).
+//      Están en este archivo, en marketing.service.ts, y acá mismo en
+//      CustomValidators.normalizeArgentinePhone.
+//   2. Compará las implementaciones — ¿hacen lo mismo? ¿hay diferencias?
+//      Analizá cuál es más completa o correcta.
+//   3. Creá una función utilitaria en un archivo separado, por ejemplo:
+//        packages/crm/src/utils/phone.utils.ts
+//      y exportá una función normalizeArgentinePhone(phone: string): string | null
+//   4. Reemplazá los 3 usos por la nueva función importada.
+//
+// No hay un único camino correcto — pensá la API de la función (¿qué recibe,
+// qué devuelve, qué hace si el teléfono es null/undefined?) y justificalo.
 class CustomValidators {
   static validateMongoId(id: string, fieldName = 'id'): string {
     if (!id) {

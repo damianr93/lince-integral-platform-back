@@ -41,6 +41,26 @@ type ProvincesCacheEntry = {
   data: unknown;
 };
 
+// TODO-3 [FÁCIL/MEDIO]: Extraer "magic numbers" a constantes con nombre.
+//
+// El problema: los números 1000 * 60 * 60 y 1000 * 60 * 60 * 24 aparecen
+// hardcodeados. No está mal matemáticamente, pero si en 6 meses alguien lee
+// el código (o vos mismo) va a tener que pensar qué significa ese número.
+// Esto se llama "magic number" — un número sin nombre que obliga al lector
+// a deducir su significado.
+//
+// La solución es extraerlos a constantes con nombres descriptivos ANTES de la
+// clase, así:
+//
+//   const ONE_HOUR_MS  = 1_000 * 60 * 60;        // 1 hora en milisegundos
+//   const ONE_DAY_MS   = ONE_HOUR_MS * 24;        // 1 día en milisegundos
+//
+// Luego usarlos en las propiedades de abajo:
+//   private readonly ttlMs         = ONE_HOUR_MS;
+//   private readonly provincesTtlMs = ONE_DAY_MS;
+//
+// Tip: fijate en follow-up.rules.ts cómo ya se usa este mismo patrón con
+// HOUR_IN_MS y DAY_IN_MS — tomalo de referencia.
 @Injectable()
 export class GeoService {
   private readonly cache = new Map<string, CacheEntry>();

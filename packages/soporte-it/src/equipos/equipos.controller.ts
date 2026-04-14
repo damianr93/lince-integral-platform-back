@@ -51,6 +51,18 @@ export class EquiposController {
     const equipo = await this.equiposService.findOne(id);
     if (user.globalRole !== GlobalRole.SUPERADMIN) {
       if (equipo.usuarioPlatId !== user.id) {
+        // TODO-4 [MEDIO]: Este return devuelve HTTP 200 con un objeto de error —
+        // eso está mal. El cliente recibe "éxito" (200) pero con un mensaje de
+        // denegación adentro. Cualquier frontend o herramienta que chequee el
+        // status code va a pensar que la request funcionó.
+        //
+        // En HTTP, "acceso denegado" se representa con el código 403 Forbidden.
+        // NestJS tiene una excepción para eso que podés importar de @nestjs/common.
+        //
+        // Tu tarea: reemplazá este return por el lanzamiento de la excepción
+        // correcta. Fijate cómo se hace en otros controllers del proyecto
+        // (pista: buscá ForbiddenException o NotFoundException como ejemplo
+        // del patrón — ya están en uso en equipos.service.ts y en otros lados).
         return { message: 'Acceso denegado' };
       }
     }

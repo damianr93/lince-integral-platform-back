@@ -46,6 +46,24 @@ async function bootstrap() {
 
   const port = process.env['PORT'] ?? 3000;
   await app.listen(port);
+
+  // TODO-2 [FÁCIL]: Reemplazar console.log con el Logger de NestJS.
+  //
+  // El problema: console.log imprime en crudo sin timestamp ni nivel de log.
+  // En producción no podés filtrar por severidad (info, warn, error) ni saber
+  // cuándo pasó. NestJS ya incluye un Logger que formatea todo correctamente.
+  //
+  // Cómo se usa:
+  //   1. Crear una instancia ANTES del bootstrap:
+  //        const logger = new Logger('Bootstrap');
+  //   2. Reemplazar el console.log de abajo por:
+  //        logger.log(`API corriendo en http://localhost:${port}/api`);
+  //
+  // Logger tiene estos niveles: logger.log() / logger.warn() / logger.error()
+  // Fijate que Logger ya está importado en la línea 3 de este archivo.
+  //
+  // Extra: buscá con Ctrl+Shift+F en el proyecto "console.log" y "console.error"
+  // y reemplazalos también en analytics.service.ts (hay varios console.error ahí).
   console.log(`🚀 API corriendo en http://localhost:${port}/api`);
 }
 

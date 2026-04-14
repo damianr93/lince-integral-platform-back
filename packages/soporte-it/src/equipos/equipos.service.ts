@@ -12,6 +12,30 @@ export class EquiposService {
     private readonly equipos: Repository<EquipoEntity>,
   ) {}
 
+  // TODO-5 [MEDIO]: Agregar paginación a este método.
+  //
+  // El problema: este método devuelve TODOS los equipos de la base de datos
+  // en una sola respuesta. Hoy hay pocos equipos, pero si mañana hay 5000,
+  // la API va a devolver todo de una sola vez — eso es lento para el cliente,
+  // consume memoria innecesaria en el servidor, y hace que el frontend tenga
+  // que manejar miles de registros.
+  //
+  // La solución es paginación: el cliente manda ?page=1&limit=20 y el servidor
+  // devuelve solo esos 20 registros más el total, para que el frontend sepa
+  // cuántas páginas hay.
+  //
+  // Para implementarlo:
+  //   1. Cambiá la firma del método para recibir page y limit como parámetros.
+  //   2. En el controller (equipos.controller.ts) leelos del query string con
+  //      @Query() y el tipo PaginationQueryDto (o creá uno con @IsOptional,
+  //      @IsInt, @Min(1) — class-validator).
+  //   3. En el servicio usá findAndCount() de TypeORM con skip y take:
+  //        skip: (page - 1) * limit,
+  //        take: limit,
+  //      y retorná { data, total, page, limit, totalPages }.
+  //
+  // Referencia: mirá users.service.ts → método findAll() — ya está implementado
+  // exactamente así. Usalo como modelo, el patrón es idéntico.
   findAll(): Promise<EquipoEntity[]> {
     return this.equipos.find({
       relations: ['usuarioPlat'],
