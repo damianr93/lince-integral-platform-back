@@ -10,7 +10,8 @@
       "@lince/auth": ["../../packages/auth/src"],
       "@lince/conciliaciones": ["../../packages/conciliaciones/src"],
       "@lince/crm": ["../../packages/crm/src"],
-      "@lince/soporte-it": ["../../packages/soporte-it/src"]
+      "@lince/soporte-it": ["../../packages/soporte-it/src"],
+      "@lince/ocr": ["../../packages/ocr/src"]
     }
   },
   "references": [
@@ -19,7 +20,8 @@
     { "path": "../../packages/auth" },
     { "path": "../../packages/conciliaciones" },
     { "path": "../../packages/crm" },
-    { "path": "../../packages/soporte-it" }
+    { "path": "../../packages/soporte-it" },
+    { "path": "../../packages/ocr" }
   ],
   "include": ["src"],
   "exclude": ["node_modules", "dist"]

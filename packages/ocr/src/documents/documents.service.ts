@@ -61,7 +61,9 @@ export class DocumentsService {
     this.assertCanUpload(dto.type, ocrRole, user);
 
     const documentId = uuidv4();
-    const folder     = dto.type === DocumentType.FACTURA ? 'facturas' : 'remitos';
+    const folder     = dto.type === DocumentType.FACTURA    ? 'facturas'
+                     : dto.type === DocumentType.RETENCION ? 'retenciones'
+                     : 'remitos';
     const s3Key      = this.storage.buildS3Key(folder, documentId, dto.contentType);
 
     const { uploadUrl, expiresIn } = await this.storage.getPresignedUploadUrl(
@@ -142,6 +144,17 @@ export class DocumentsService {
   }
 
   /**
+   * Devuelve solo las retenciones del usuario autenticado.
+   * Para ADMINISTRATIVO.
+   */
+  async findMyRetenciones(filters: FilterDocumentsDto, userId: string) {
+    return this.queryDocuments(filters, {
+      type:       DocumentType.RETENCION,
+      uploadedBy: userId,
+    });
+  }
+
+  /**
    * Devuelve documentos en cola de revisión (estado REVISION_PENDIENTE o CON_ERRORES).
    * Solo ADMIN / SUPERADMIN.
    */
@@ -180,6 +193,20 @@ export class DocumentsService {
     if (!doc) throw new NotFoundException(`Documento ${id} no encontrado`);
     this.assertCanView(doc, user);
     return doc;
+  }
+
+  // ── 3b. View URL fresca ───────────────────────────────────────────────────
+
+  /**
+   * Genera una presigned GET URL fresca para el archivo en S3.
+   * Útil cuando el viewUrl del findOne ya expiró o no vino por un error silencioso.
+   */
+  async getViewUrl(id: string, user: AuthUser): Promise<{ viewUrl: string | null }> {
+    const doc = await this.docRepo.findOne({ where: { id } });
+    if (!doc) throw new NotFoundException(`Documento ${id} no encontrado`);
+    this.assertCanView(doc, user);
+    const viewUrl = await this.storage.getPresignedViewUrl(doc.s3Key).catch(() => null);
+    return { viewUrl: viewUrl || null };
   }
 
   // ── 4. Corrección de campos ───────────────────────────────────────────────
@@ -302,7 +329,7 @@ export class DocumentsService {
       // Inferir MIME type desde la extensión de la clave S3
       const mimeType = inferMimeType(doc.s3Key);
 
-      // Extraer campos con Google Vision
+      // Extraer campos con el engine OCR configurado
       const { fields, rawText } = await this.vision.extractFields(
         buffer,
         mimeType,
@@ -417,6 +444,9 @@ export class DocumentsService {
     if (type === DocumentType.FACTURA && ocrRole === OcrRole.OPERADOR_CAMPO) {
       throw new ForbiddenException('OPERADOR_CAMPO no puede subir facturas');
     }
+    if (type === DocumentType.RETENCION && ocrRole === OcrRole.OPERADOR_CAMPO) {
+      throw new ForbiddenException('OPERADOR_CAMPO no puede subir retenciones');
+    }
   }
 
   private assertCanEdit(doc: DocumentEntity, user: AuthUser): void {
@@ -426,13 +456,13 @@ export class DocumentsService {
 
     if (ocrRole === OcrRole.ADMIN) return;
 
-    // ADMINISTRATIVO solo puede editar sus propias facturas
+    // ADMINISTRATIVO solo puede editar sus propias facturas y retenciones
     if (ocrRole === OcrRole.ADMINISTRATIVO) {
-      if (doc.type !== DocumentType.FACTURA) {
-        throw new ForbiddenException('ADMINISTRATIVO solo puede editar facturas');
+      if (doc.type !== DocumentType.FACTURA && doc.type !== DocumentType.RETENCION) {
+        throw new ForbiddenException('ADMINISTRATIVO solo puede editar facturas y retenciones');
       }
       if (doc.uploadedBy !== user.id) {
-        throw new ForbiddenException('Solo podés editar tus propias facturas');
+        throw new ForbiddenException('Solo podés editar tus propios documentos');
       }
       return;
     }

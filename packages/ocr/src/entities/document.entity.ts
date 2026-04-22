@@ -12,7 +12,7 @@ import { DocumentStatus, DocumentType, OcrRole } from '../enums';
  * Tabla principal del módulo OCR.
  * Almacena metadatos de remitos y facturas.
  * El archivo binario vive en AWS S3 (s3Key).
- * Los campos extraídos por Google Vision se guardan en extractedData (JSONB).
+ * Los campos extraídos por el engine OCR se guardan en extractedData (JSONB).
  */
 @Entity('ocr_documents')
 @Index(['uploadedBy'])
@@ -57,7 +57,7 @@ export class DocumentEntity {
   // ── OCR ───────────────────────────────────────────────────────────────────
 
   /**
-   * Campos extraídos por Google Vision API.
+   * Campos extraídos por el engine OCR.
    * Para REMITO: { numero, fecha, proveedor, destinatario, productos, total }
    * Para FACTURA: { numero, fecha, proveedor, cuit, neto, iva, total, tipo }
    */

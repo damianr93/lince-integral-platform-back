@@ -17,6 +17,7 @@ import { DocumentsController } from './documents.controller';
     OcrNotificationsModule,
   ],
   providers:   [DocumentsService, ValidationService],
+  // VisionService ya está provisto por VisionModule (importado arriba)
   controllers: [DocumentsController],
   exports:     [DocumentsService, ValidationService],
 })

@@ -4,7 +4,8 @@ import { DocumentStatus, DocumentType } from '../../enums';
 
 /**
  * GET /ocr/documents          → ADMIN / SUPERADMIN (todos los documentos)
- * GET /ocr/documents/facturas → ADMINISTRATIVO (solo sus facturas)
+ * GET /ocr/documents/me/facturas → ADMINISTRATIVO (solo sus facturas)
+ * GET /ocr/documents/me/retenciones → ADMINISTRATIVO (solo sus retenciones)
  * GET /ocr/documents/review-queue → ADMIN / SUPERADMIN (cola de revisión)
  *
  * Todos los parámetros son opcionales.

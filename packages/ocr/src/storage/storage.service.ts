@@ -4,7 +4,7 @@
  * Responsabilidades:
  *  - Generar presigned PUT URLs para que el cliente suba directo a S3
  *  - Generar presigned GET URLs para visualización segura (no expone el bucket)
- *  - Descargar objetos a buffer (para enviarlos a Google Vision)
+ *  - Descargar objetos a buffer (para enviarlos a Google Cloud OCR)
  *  - Eliminar objetos
  *
  * Configuración (todas opcionales hasta tener credenciales reales):
@@ -142,7 +142,7 @@ export class StorageService {
 
   /**
    * Descarga el contenido de un objeto S3 como Buffer.
-   * Usado internamente por VisionService para enviar el archivo a Google Vision.
+   * Usado internamente por el engine OCR para enviar el archivo a Google Cloud.
    *
    * @param s3Key Clave del objeto en S3
    */
@@ -205,7 +205,7 @@ export class StorageService {
   }
 
   buildS3Key(
-    type: 'remitos' | 'facturas',
+    type: 'remitos' | 'facturas' | 'retenciones',
     documentId: string,
     mimeType: AllowedMimeType,
   ): string {

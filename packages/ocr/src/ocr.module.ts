@@ -4,7 +4,7 @@
  * Integra todos los submódulos:
  *  - DocumentsModule  → CRUD + upload flow + aprobaciones
  *  - StorageModule    → AWS S3 presigned URLs
- *  - VisionModule     → Google Cloud Vision OCR
+ *  - VisionModule     → Engine OCR (Google Document AI / Vision fallback)
  *  - OcrNotificationsModule → Emails transaccionales
  *
  * Para habilitar el módulo, agregar OcrModule en AppModule e incluir

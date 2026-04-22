@@ -44,7 +44,7 @@ import { AreasModule } from './areas/areas.module';
     // Módulo Conciliaciones bancarias
     ConciliacionesModule,
 
-    // Módulo OCR (remitos + facturas + Google Vision + S3)
+    // Módulo OCR (remitos + facturas + Google Document AI/Vision + S3)
     OcrModule,
 
     // Módulo Soporte IT (equipos + incidentes + relevamientos técnicos)

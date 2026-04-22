@@ -4,11 +4,11 @@
  * Cada regla recibe los campos extraídos y devuelve una lista de errores.
  * Si la lista está vacía → documento VÁLIDO.
  *
- * Los campos requeridos por defecto son: numero, fecha, proveedor.
+ * Los campos requeridos por defecto son: nroRemito, fecha, cliente.
  * El SUPERADMIN puede sobrescribir la lista desde OcrConfigEntity.
  */
 
-import { ExtractedFields } from '../../vision/vision.service';
+import { ExtractedFields } from '../../ocr.types';
 
 export interface ValidationRule {
   field: string;
@@ -29,9 +29,9 @@ function isValidDate(value: string): boolean {
 }
 
 export const REMITO_RULES: ValidationRule[] = [
-  required('numero', 'Número de remito'),
-  required('fecha',  'Fecha'),
-  required('proveedor', 'Proveedor'),
+  required('nroRemito', 'Número de remito'),
+  required('fecha',     'Fecha'),
+  required('cliente',   'Cliente'),
 
   // Validación de formato de fecha (si el campo fue detectado)
   {

@@ -23,7 +23,7 @@ export class OcrConfigEntity {
    * Si alguno falta → status CON_ERRORES.
    *
    * Defaults:
-   *   REMITO:  ['numero', 'fecha', 'proveedor']
+   *   REMITO:  ['nroRemito', 'fecha', 'cliente']
    *   FACTURA: ['numero', 'fecha', 'proveedor', 'cuit', 'total']
    */
   @Column({ name: 'required_fields', type: 'jsonb' })

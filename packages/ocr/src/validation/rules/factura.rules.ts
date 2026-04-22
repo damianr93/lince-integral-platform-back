@@ -5,7 +5,7 @@
  * (CUIT, número de comprobante, tipos de factura).
  */
 
-import { ExtractedFields } from '../../vision/vision.service';
+import { ExtractedFields } from '../../ocr.types';
 import { ValidationRule } from './remito.rules';
 
 /** CUIT argentino: XX-XXXXXXXX-X o XXXXXXXXXXX (11 dígitos) */

@@ -10,6 +10,7 @@
  *  POST   /confirm-upload     → El que subió el documento
  *  GET    /                   → Solo ADMIN / SUPERADMIN
  *  GET    /facturas            → ADMINISTRATIVO (solo las propias)
+ *  GET    /retenciones        → ADMINISTRATIVO (solo las propias)
  *  GET    /review-queue       → Solo ADMIN / SUPERADMIN
  *  GET    /:id                → El dueño del doc, ADMIN, SUPERADMIN
  *  GET    /:id/status         → El dueño del doc, ADMIN, SUPERADMIN (polling liviano)
@@ -111,7 +112,6 @@ export class DocumentsController {
 
   /**
    * Lista las facturas propias del ADMINISTRATIVO autenticado.
-   * No incluye facturas de otros usuarios.
    */
   @Get('facturas')
   findMyFacturas(
@@ -119,6 +119,17 @@ export class DocumentsController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.documents.findMyFacturas(filters, user.id);
+  }
+
+  /**
+   * Lista las retenciones propias del ADMINISTRATIVO autenticado.
+   */
+  @Get('retenciones')
+  findMyRetenciones(
+    @Query() filters: FilterDocumentsDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.documents.findMyRetenciones(filters, user.id);
   }
 
   /**
@@ -131,14 +142,15 @@ export class DocumentsController {
   }
 
   /**
-   * Detalle completo de un documento, incluye presigned view URL para la imagen.
+   * Obtiene una presigned GET URL fresca para visualizar el archivo original.
+   * Útil cuando la URL del findOne expiró o vino nula por un error de S3.
    */
-  @Get(':id')
-  findOne(
+  @Get(':id/view-url')
+  getViewUrl(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.documents.findOne(id, user);
+    return this.documents.getViewUrl(id, user);
   }
 
   /**
@@ -150,6 +162,17 @@ export class DocumentsController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.documents.getStatus(id, user);
+  }
+
+  /**
+   * Detalle completo de un documento, incluye presigned view URL para la imagen.
+   */
+  @Get(':id')
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.documents.findOne(id, user);
   }
 
   // ── Corrección y revisión ──────────────────────────────────────────────────
