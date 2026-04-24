@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '@lince/auth';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -58,19 +58,15 @@ export class DebugController {
    * DELETE /api/asistencia/debug/raw-logs
    * Borra todos los raw logs (útil para limpiar registros de prueba).
    */
-  @Delete('raw-logs')
-  async deleteRawLogs() {
-    const result = await this.rawLogRepo.clear();
-    return { deleted: true, result };
+  @Delete('raw-logs/:id')
+  async deleteRawLog(@Param('id') id: string) {
+    const result = await this.rawLogRepo.delete(id);
+    return { deleted: (result.affected ?? 0) > 0, affected: result.affected };
   }
 
-  /**
-   * DELETE /api/asistencia/debug/fichajes
-   * Borra todos los fichajes (útil para limpiar registros de prueba).
-   */
-  @Delete('fichajes')
-  async deleteFichajes() {
-    const result = await this.fichajeRepo.clear();
-    return { deleted: true, result };
+  @Delete('fichajes/:id')
+  async deleteFichaje(@Param('id') id: string) {
+    const result = await this.fichajeRepo.delete(id);
+    return { deleted: (result.affected ?? 0) > 0, affected: result.affected };
   }
 }
