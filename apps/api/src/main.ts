@@ -12,6 +12,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
   app.use(
+    '/iclock',
     text({
       type: '*/*',
       limit: '1mb',
