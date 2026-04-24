@@ -58,6 +58,19 @@ export class DebugController {
    * DELETE /api/asistencia/debug/raw-logs
    * Borra todos los raw logs (útil para limpiar registros de prueba).
    */
+  /**
+   * GET /api/asistencia/debug/fichajes
+   * Últimos 50 fichajes — para ver IDs y diagnóstico.
+   */
+  @Get('fichajes')
+  async getFichajes(@Query('limit') limit = 50) {
+    return this.fichajeRepo.find({
+      order: { createdAt: 'DESC' },
+      take: Math.min(Number(limit), 200),
+      relations: ['empleado'],
+    });
+  }
+
   @Delete('raw-logs/:id')
   async deleteRawLog(@Param('id') id: string) {
     const result = await this.rawLogRepo.delete(id);
