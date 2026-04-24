@@ -11,7 +11,8 @@
       "@lince/conciliaciones": ["../../packages/conciliaciones/src"],
       "@lince/crm": ["../../packages/crm/src"],
       "@lince/soporte-it": ["../../packages/soporte-it/src"],
-      "@lince/ocr": ["../../packages/ocr/src"]
+      "@lince/ocr": ["../../packages/ocr/src"],
+      "@lince/asistencia": ["../../packages/asistencia/src"]
     }
   },
   "references": [
@@ -21,7 +22,8 @@
     { "path": "../../packages/conciliaciones" },
     { "path": "../../packages/crm" },
     { "path": "../../packages/soporte-it" },
-    { "path": "../../packages/ocr" }
+    { "path": "../../packages/ocr" },
+    { "path": "../../packages/asistencia" }
   ],
   "include": ["src"],
   "exclude": ["node_modules", "dist"]

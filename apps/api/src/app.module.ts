@@ -7,6 +7,7 @@ import { CrmModule } from '@lince/crm';
 import { ConciliacionesModule, conciliacionesEntities } from '@lince/conciliaciones';
 import { OcrModule, ocrEntities } from '@lince/ocr';
 import { SoporteItModule, soporteItEntities } from '@lince/soporte-it';
+import { AsistenciaModule, asistenciaEntities } from '@lince/asistencia';
 import { UsersModule } from './users/users.module';
 import { AreasModule } from './areas/areas.module';
 
@@ -25,7 +26,7 @@ import { AreasModule } from './areas/areas.module';
       useFactory: (config: ConfigService) =>
         buildDataSourceOptions(
           config.getOrThrow<string>('DATABASE_URL'),
-          [...conciliacionesEntities, ...ocrEntities, ...soporteItEntities, AreaEntity],
+          [...conciliacionesEntities, ...ocrEntities, ...soporteItEntities, ...asistenciaEntities, AreaEntity],
         ),
     }),
 
@@ -49,6 +50,9 @@ import { AreasModule } from './areas/areas.module';
 
     // Módulo Soporte IT (equipos + incidentes + relevamientos técnicos)
     SoporteItModule,
+
+    // Módulo Asistencia (relojes ZKTeco + empleados + fichajes + reportes RRHH)
+    AsistenciaModule,
   ],
 })
 export class AppModule {}

@@ -1,0 +1,1 @@
+{"version":3,"file":"issue-comment.entity.d.ts","sourceRoot":"","sources":["issue-comment.entity.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,WAAW,EAAE,MAAM,gBAAgB,CAAC;AAE7C,qBACa,kBAAkB;IAE7B,EAAE,EAAE,MAAM,CAAC;IAGX,OAAO,EAAE,MAAM,CAAC;IAIhB,KAAK,EAAE,WAAW,CAAC;IAGnB,QAAQ,EAAE,MAAM,CAAC;IAGjB,IAAI,EAAE,MAAM,CAAC;IAGb,SAAS,EAAE,IAAI,CAAC;CACjB"}

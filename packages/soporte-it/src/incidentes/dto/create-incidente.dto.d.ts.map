@@ -1,0 +1,1 @@
+{"version":3,"file":"create-incidente.dto.d.ts","sourceRoot":"","sources":["create-incidente.dto.ts"],"names":[],"mappings":"AAQA,OAAO,EAAE,iBAAiB,EAAE,MAAM,iCAAiC,CAAC;AAEpE,qBAAa,kBAAkB;IAE7B,QAAQ,EAAE,MAAM,CAAC;IAIjB,WAAW,EAAE,MAAM,CAAC;IAIpB,QAAQ,CAAC,EAAE,iBAAiB,CAAC;IAI7B,YAAY,CAAC,EAAE,MAAM,CAAC;IAItB,qBAAqB,CAAC,EAAE,MAAM,CAAC;IAI/B,eAAe,CAAC,EAAE,MAAM,CAAC;CAC1B"}

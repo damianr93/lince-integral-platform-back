@@ -41,7 +41,9 @@ async function bootstrap() {
     }),
   );
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', {
+    exclude: ['/iclock/(.*)'],
+  });
   app.useGlobalFilters(new AllExceptionsFilter());
 
   const port = process.env['PORT'] ?? 3000;

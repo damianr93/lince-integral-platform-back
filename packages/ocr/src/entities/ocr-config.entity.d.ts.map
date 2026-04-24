@@ -1,0 +1,1 @@
+{"version":3,"file":"ocr-config.entity.d.ts","sourceRoot":"","sources":["ocr-config.entity.ts"],"names":[],"mappings":"AAMA,OAAO,EAAE,YAAY,EAAE,MAAM,UAAU,CAAC;AAExC;;;;;GAKG;AACH,qBACa,eAAe;IAC1B,0DAA0D;IAE1D,IAAI,EAAE,YAAY,CAAC;IAEnB;;;;;;;OAOG;IAEH,cAAc,EAAE,MAAM,EAAE,CAAC;IAEzB,8DAA8D;IAE9D,WAAW,EAAE,MAAM,CAAC,MAAM,EAAE,MAAM,CAAC,CAAC;IAGpC,SAAS,EAAE,IAAI,CAAC;CACjB"}

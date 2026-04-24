@@ -1,0 +1,1 @@
+{"version":3,"file":"send-single.dto.d.ts","sourceRoot":"","sources":["send-single.dto.ts"],"names":[],"mappings":"AAEA,qBAAa,aAAa;IAGxB,KAAK,EAAE,MAAM,CAAC;IAId,YAAY,EAAE,MAAM,CAAC;IAIrB,gBAAgB,EAAE,MAAM,CAAC;IAIzB,OAAO,EAAE,UAAU,GAAG,OAAO,GAAG,QAAQ,CAAC;IAIzC,sBAAsB,CAAC,EAAE,MAAM,CAAC;CACjC"}

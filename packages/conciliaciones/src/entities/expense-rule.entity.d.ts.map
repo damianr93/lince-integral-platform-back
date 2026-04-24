@@ -1,0 +1,1 @@
+{"version":3,"file":"expense-rule.entity.d.ts","sourceRoot":"","sources":["expense-rule.entity.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,qBAAqB,EAAE,MAAM,2BAA2B,CAAC;AAElE,qBACa,iBAAiB;IAE5B,EAAE,EAAE,MAAM,CAAC;IAGX,UAAU,EAAE,MAAM,CAAC;IAInB,QAAQ,EAAE,qBAAqB,CAAC;IAGhC,OAAO,EAAE,MAAM,CAAC;IAGhB,OAAO,EAAE,OAAO,CAAC;IAGjB,aAAa,EAAE,OAAO,CAAC;CACxB"}

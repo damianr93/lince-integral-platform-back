@@ -1,0 +1,8 @@
+import { CanActivate, ExecutionContext } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+export declare class ModuleGuard implements CanActivate {
+    private readonly reflector;
+    constructor(reflector: Reflector);
+    canActivate(ctx: ExecutionContext): boolean;
+}
+//# sourceMappingURL=module.guard.d.ts.map
