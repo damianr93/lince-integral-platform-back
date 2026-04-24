@@ -114,8 +114,8 @@ export class ReportsService {
     desde?:      string;
     hasta?:      string;
     estado?:     string;
-    page?:       number;
-    limit?:      number;
+    page?:       string;
+    limit?:      string;
   }) {
     return this.logsService.findAll({
       planta:     params.planta,
@@ -123,8 +123,8 @@ export class ReportsService {
       desde:      params.desde ? new Date(params.desde) : undefined,
       hasta:      params.hasta ? new Date(params.hasta) : undefined,
       estado:     params.estado !== undefined ? Number(params.estado) as EstadoFichaje : undefined,
-      page:       params.page,
-      limit:      params.limit,
+      page:       params.page ? Number(params.page) : undefined,
+      limit:      params.limit ? Number(params.limit) : undefined,
     });
   }
 }

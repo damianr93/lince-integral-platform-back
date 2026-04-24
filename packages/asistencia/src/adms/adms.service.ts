@@ -8,6 +8,7 @@ import { EmpleadoEntity, Planta } from '../entities/empleado.entity';
 
 interface ParsedPunch {
   pin:    string;
+  pinRaw: string;
   time:   Date;
   status: EstadoFichaje;
   verify: number | null;
@@ -115,7 +116,7 @@ export class AdmsService {
         continue;
       }
 
-      const empleado = await this.empleadoRepo.findOne({ where: { pin: punch.pin } });
+      const empleado = await this.findEmpleadoByPinVariants(punch.pinRaw, punch.pin);
 
       await this.fichajeRepo.save(
         this.fichajeRepo.create({
@@ -206,7 +207,8 @@ export class AdmsService {
 
     if (parts.length < 3) return null;
 
-    const pin    = parts[0];
+    const pinRaw = parts[0];
+    const pin    = this.normalizePin(pinRaw);
     const timeStr = parts[1];
     const status  = parseInt(parts[2] ?? '0', 10) as EstadoFichaje;
     const verify  = parts[3] ? parseInt(parts[3], 10) : null;
@@ -217,7 +219,7 @@ export class AdmsService {
       return null;
     }
 
-    return { pin, time, status, verify };
+    return { pin, pinRaw, time, status, verify };
   }
 
   /**
@@ -255,5 +257,28 @@ export class AdmsService {
       .getCount();
 
     return count > 0;
+  }
+
+  private normalizePin(pin: string): string {
+    const trimmed = pin.trim();
+    const withoutLeadingZeros = trimmed.replace(/^0+/, '');
+    return withoutLeadingZeros.length > 0 ? withoutLeadingZeros : '0';
+  }
+
+  private async findEmpleadoByPinVariants(pinRaw: string, normalizedPin: string): Promise<EmpleadoEntity | null> {
+    const candidates = Array.from(
+      new Set([
+        pinRaw.trim(),
+        normalizedPin,
+        pinRaw.trim().replace(/^0+/, '') || '0',
+        normalizedPin.padStart(8, '0'),
+      ]),
+    );
+
+    return this.empleadoRepo
+      .createQueryBuilder('e')
+      .where('e.pin IN (:...pins)', { pins: candidates })
+      .orderBy('LENGTH(e.pin)', 'ASC')
+      .getOne();
   }
 }

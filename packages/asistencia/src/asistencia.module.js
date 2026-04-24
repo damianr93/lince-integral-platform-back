@@ -17,6 +17,7 @@ const adms_service_1 = require("./adms/adms.service");
 const employees_controller_1 = require("./employees/employees.controller");
 const employees_service_1 = require("./employees/employees.service");
 const logs_service_1 = require("./logs/logs.service");
+const logs_controller_1 = require("./logs/logs.controller");
 const reports_controller_1 = require("./reports/reports.controller");
 const reports_service_1 = require("./reports/reports.service");
 const debug_controller_1 = require("./debug/debug.controller");
@@ -32,6 +33,7 @@ exports.AsistenciaModule = AsistenciaModule = __decorate([
             adms_controller_1.AdmsController,
             employees_controller_1.EmployeesController,
             reports_controller_1.ReportsController,
+            logs_controller_1.LogsController,
             debug_controller_1.DebugController,
         ],
         providers: [

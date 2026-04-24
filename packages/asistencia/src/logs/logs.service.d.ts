@@ -11,6 +11,11 @@ export interface FichajesFilter {
     page?: number;
     limit?: number;
 }
+export interface UpdateFichajeInput {
+    estado?: EstadoFichaje;
+    tiempo?: Date;
+    empleadoId?: string | null;
+}
 export declare class LogsService {
     private readonly repo;
     constructor(repo: Repository<FichajeEntity>);
@@ -18,6 +23,7 @@ export declare class LogsService {
         items: FichajeEntity[];
         total: number;
     }>;
+    updateById(id: string, input: UpdateFichajeInput): Promise<FichajeEntity>;
     findToday(planta?: Planta): Promise<FichajeEntity[]>;
     findByEmployee(empleadoId: string, limit?: number): Promise<FichajeEntity[]>;
     /** Último fichaje de cada PIN hoy — para determinar quién está en planta */

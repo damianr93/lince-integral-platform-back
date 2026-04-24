@@ -19,8 +19,9 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const class_validator_1 = require("class-validator");
 const raw_log_entity_1 = require("../entities/raw-log.entity");
-const adms_service_1 = require("../adms/adms.service");
 const fichaje_entity_1 = require("../entities/fichaje.entity");
+const adms_service_1 = require("../adms/adms.service");
+const fichaje_entity_2 = require("../entities/fichaje.entity");
 class SimulatePunchDto {
 }
 __decorate([
@@ -29,7 +30,7 @@ __decorate([
     __metadata("design:type", String)
 ], SimulatePunchDto.prototype, "pin", void 0);
 __decorate([
-    (0, class_validator_1.IsEnum)(fichaje_entity_1.EstadoFichaje),
+    (0, class_validator_1.IsEnum)(fichaje_entity_2.EstadoFichaje),
     __metadata("design:type", Number)
 ], SimulatePunchDto.prototype, "status", void 0);
 __decorate([
@@ -38,9 +39,10 @@ __decorate([
     __metadata("design:type", String)
 ], SimulatePunchDto.prototype, "deviceSn", void 0);
 let DebugController = class DebugController {
-    constructor(admsService, rawLogRepo) {
+    constructor(admsService, rawLogRepo, fichajeRepo) {
         this.admsService = admsService;
         this.rawLogRepo = rawLogRepo;
+        this.fichajeRepo = fichajeRepo;
     }
     /**
      * GET /api/asistencia/debug/raw-logs
@@ -60,6 +62,29 @@ let DebugController = class DebugController {
     simulatePunch(dto) {
         return this.admsService.simulatePunch(dto.pin, dto.status, dto.deviceSn);
     }
+    /**
+     * DELETE /api/asistencia/debug/raw-logs
+     * Borra todos los raw logs (útil para limpiar registros de prueba).
+     */
+    /**
+     * GET /api/asistencia/debug/fichajes
+     * Últimos 50 fichajes — para ver IDs y diagnóstico.
+     */
+    async getFichajes(limit = 50) {
+        return this.fichajeRepo.find({
+            order: { createdAt: 'DESC' },
+            take: Math.min(Number(limit), 200),
+            relations: ['empleado'],
+        });
+    }
+    async deleteRawLog(id) {
+        const result = await this.rawLogRepo.delete(id);
+        return { deleted: (result.affected ?? 0) > 0, affected: result.affected };
+    }
+    async deleteFichaje(id) {
+        const result = await this.fichajeRepo.delete(id);
+        return { deleted: (result.affected ?? 0) > 0, affected: result.affected };
+    }
 };
 exports.DebugController = DebugController;
 __decorate([
@@ -76,11 +101,34 @@ __decorate([
     __metadata("design:paramtypes", [SimulatePunchDto]),
     __metadata("design:returntype", void 0)
 ], DebugController.prototype, "simulatePunch", null);
+__decorate([
+    (0, common_1.Get)('fichajes'),
+    __param(0, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], DebugController.prototype, "getFichajes", null);
+__decorate([
+    (0, common_1.Delete)('raw-logs/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], DebugController.prototype, "deleteRawLog", null);
+__decorate([
+    (0, common_1.Delete)('fichajes/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], DebugController.prototype, "deleteFichaje", null);
 exports.DebugController = DebugController = __decorate([
     (0, common_1.UseGuards)(auth_1.JwtAuthGuard),
     (0, common_1.Controller)('asistencia/debug'),
     __param(1, (0, typeorm_1.InjectRepository)(raw_log_entity_1.RawLogEntity)),
+    __param(2, (0, typeorm_1.InjectRepository)(fichaje_entity_1.FichajeEntity)),
     __metadata("design:paramtypes", [adms_service_1.AdmsService,
+        typeorm_2.Repository,
         typeorm_2.Repository])
 ], DebugController);
 //# sourceMappingURL=debug.controller.js.map

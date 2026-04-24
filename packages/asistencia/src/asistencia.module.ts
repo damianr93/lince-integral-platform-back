@@ -8,6 +8,7 @@ import { AdmsService }    from './adms/adms.service';
 import { EmployeesController } from './employees/employees.controller';
 import { EmployeesService }    from './employees/employees.service';
 import { LogsService }         from './logs/logs.service';
+import { LogsController }      from './logs/logs.controller';
 import { ReportsController }   from './reports/reports.controller';
 import { ReportsService }      from './reports/reports.service';
 import { DebugController }     from './debug/debug.controller';
@@ -20,6 +21,7 @@ import { DebugController }     from './debug/debug.controller';
     AdmsController,
     EmployeesController,
     ReportsController,
+    LogsController,
     DebugController,
   ],
   providers: [

@@ -28,8 +28,7 @@ export interface EmpleadoPresente {
 export declare class ReportsService {
     private readonly logsService;
     private readonly empleadoRepo;
-    private readonly fichajeRepo;
-    constructor(logsService: LogsService, empleadoRepo: Repository<EmpleadoEntity>, fichajeRepo: Repository<FichajeEntity>);
+    constructor(logsService: LogsService, empleadoRepo: Repository<EmpleadoEntity>);
     getPresentNow(planta?: Planta): Promise<EmpleadoPresente[]>;
     getDailySummary(planta?: Planta): Promise<ResumenDiario>;
     getEmployeeHistory(empleadoId: string, limit?: number): Promise<FichajeEntity[]>;
@@ -39,8 +38,8 @@ export declare class ReportsService {
         desde?: string;
         hasta?: string;
         estado?: string;
-        page?: number;
-        limit?: number;
+        page?: string;
+        limit?: string;
     }): Promise<{
         items: FichajeEntity[];
         total: number;

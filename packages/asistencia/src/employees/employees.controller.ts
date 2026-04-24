@@ -26,6 +26,11 @@ export class EmployeesController {
     return this.service.findOne(id);
   }
 
+  @Post('seed-villa-nueva')
+  seedVillaNueva() {
+    return this.service.seedVillaNueva();
+  }
+
   @Post()
   create(@Body() dto: CreateEmpleadoDto) {
     return this.service.create(dto);

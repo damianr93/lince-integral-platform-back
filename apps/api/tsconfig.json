@@ -12,7 +12,7 @@
       "@lince/crm": ["../../packages/crm/src"],
       "@lince/soporte-it": ["../../packages/soporte-it/src"],
       "@lince/ocr": ["../../packages/ocr/src"],
-      "@lince/asistencia": ["../../packages/asistencia/src"]
+      "@lince/asistencia": ["../../packages/asistencia"]
     }
   },
   "references": [

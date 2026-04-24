@@ -23,6 +23,8 @@ let LogsService = class LogsService {
     }
     async findAll(filter = {}) {
         const { planta, empleadoId, pin, desde, hasta, estado, page = 1, limit = 50 } = filter;
+        const pageNum = Math.max(1, Number(page) || 1);
+        const limitNum = Math.min(200, Math.max(1, Number(limit) || 50));
         const qb = this.repo
             .createQueryBuilder('f')
             .leftJoinAndSelect('f.empleado', 'e')
@@ -45,10 +47,23 @@ let LogsService = class LogsService {
             qb.andWhere('f.tiempo <= :hasta', { hasta });
         }
         const [items, total] = await qb
-            .skip((page - 1) * limit)
-            .take(limit)
+            .skip((pageNum - 1) * limitNum)
+            .take(limitNum)
             .getManyAndCount();
         return { items, total };
+    }
+    async updateById(id, input) {
+        const fichaje = await this.repo.findOne({ where: { id }, relations: ['empleado'] });
+        if (!fichaje) {
+            throw new common_1.NotFoundException('Fichaje no encontrado');
+        }
+        if (input.estado !== undefined)
+            fichaje.estado = input.estado;
+        if (input.tiempo !== undefined)
+            fichaje.tiempo = input.tiempo;
+        if (input.empleadoId !== undefined)
+            fichaje.empleadoId = input.empleadoId;
+        return this.repo.save(fichaje);
     }
     async findToday(planta) {
         const hoy = new Date();

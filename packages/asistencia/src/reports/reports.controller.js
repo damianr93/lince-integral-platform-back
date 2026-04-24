@@ -63,7 +63,7 @@ __decorate([
     __param(5, (0, common_1.Query)('page')),
     __param(6, (0, common_1.Query)('limit')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String, Number, Number]),
+    __metadata("design:paramtypes", [String, String, String, String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], ReportsController.prototype, "getAttendance", null);
 __decorate([

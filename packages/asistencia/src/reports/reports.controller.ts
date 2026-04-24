@@ -28,8 +28,8 @@ export class ReportsController {
     @Query('desde')      desde?: string,
     @Query('hasta')      hasta?: string,
     @Query('estado')     estado?: string,
-    @Query('page')       page?: number,
-    @Query('limit')      limit?: number,
+    @Query('page')       page?: string,
+    @Query('limit')      limit?: string,
   ) {
     return this.service.getAttendance({ planta, empleadoId, desde, hasta, estado, page, limit });
   }

@@ -20,10 +20,9 @@ const fichaje_entity_1 = require("../entities/fichaje.entity");
 const empleado_entity_1 = require("../entities/empleado.entity");
 const logs_service_1 = require("../logs/logs.service");
 let ReportsService = class ReportsService {
-    constructor(logsService, empleadoRepo, fichajeRepo) {
+    constructor(logsService, empleadoRepo) {
         this.logsService = logsService;
         this.empleadoRepo = empleadoRepo;
-        this.fichajeRepo = fichajeRepo;
     }
     // ── Quién está en planta ahora ─────────────────────────────────────────────
     async getPresentNow(planta) {
@@ -91,8 +90,8 @@ let ReportsService = class ReportsService {
             desde: params.desde ? new Date(params.desde) : undefined,
             hasta: params.hasta ? new Date(params.hasta) : undefined,
             estado: params.estado !== undefined ? Number(params.estado) : undefined,
-            page: params.page,
-            limit: params.limit,
+            page: params.page ? Number(params.page) : undefined,
+            limit: params.limit ? Number(params.limit) : undefined,
         });
     }
 };
@@ -100,9 +99,7 @@ exports.ReportsService = ReportsService;
 exports.ReportsService = ReportsService = __decorate([
     (0, common_1.Injectable)(),
     __param(1, (0, typeorm_1.InjectRepository)(empleado_entity_1.EmpleadoEntity)),
-    __param(2, (0, typeorm_1.InjectRepository)(fichaje_entity_1.FichajeEntity)),
     __metadata("design:paramtypes", [logs_service_1.LogsService,
-        typeorm_2.Repository,
         typeorm_2.Repository])
 ], ReportsService);
 //# sourceMappingURL=reports.service.js.map
