@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
-import { json, urlencoded } from 'express';
+import { json, text, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 
@@ -11,6 +11,13 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
+  app.use(
+    text({
+      type: '*/*',
+      limit: '1mb',
+      verify: (req: any, _res, buf: Buffer) => { req.rawBody = buf; },
+    }),
+  );
   app.use(
     json({
       limit: '10mb',
