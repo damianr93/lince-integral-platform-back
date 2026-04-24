@@ -10,6 +10,7 @@ COPY packages/auth/package.json ./packages/auth/package.json
 COPY packages/crm/package.json ./packages/crm/package.json
 COPY packages/conciliaciones/package.json ./packages/conciliaciones/package.json
 COPY packages/ocr/package.json ./packages/ocr/package.json
+COPY packages/asistencia/package.json ./packages/asistencia/package.json
 COPY packages/soporte-it/package.json ./packages/soporte-it/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 COPY packages/eslint-config/package.json ./packages/eslint-config/package.json
