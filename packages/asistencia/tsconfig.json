@@ -1,11 +1,23 @@
 {
-  "extends": "@repo/typescript-config/nestjs.json",
   "compilerOptions": {
     "composite": true,
     "outDir": "./dist",
     "rootDir": "./src",
+    "declaration": true,
+    "declarationMap": true,
+    "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "esModuleInterop": true,
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "noUncheckedIndexedAccess": false,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "target": "ES2021",
+    "lib": ["ES2021", "ES2021.Promise", "ES2021.String", "ES2021.WeakRef"]
   },
   "references": [
     { "path": "../auth" },
