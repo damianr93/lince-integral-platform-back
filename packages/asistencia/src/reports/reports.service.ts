@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { FichajeEntity, EstadoFichaje } from '../entities/fichaje.entity';
+import { EstadoFichaje, FichajeEntity } from '../entities/fichaje.entity';
 import { EmpleadoEntity, Planta } from '../entities/empleado.entity';
 import { LogsService } from '../logs/logs.service';
 
@@ -36,8 +36,6 @@ export class ReportsService {
     private readonly logsService: LogsService,
     @InjectRepository(EmpleadoEntity)
     private readonly empleadoRepo: Repository<EmpleadoEntity>,
-    @InjectRepository(FichajeEntity)
-    private readonly fichajeRepo: Repository<FichajeEntity>,
   ) {}
 
   // ── Quién está en planta ahora ─────────────────────────────────────────────
