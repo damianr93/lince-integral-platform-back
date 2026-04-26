@@ -78,10 +78,8 @@ export class AdmsController {
   @Get('getrequest')
   async heartbeat(
     @Query() query: Record<string, string>,
-    @Req()   req:   Request,
     @Res()   res:   Response,
   ): Promise<void> {
-    await this.logRequest(req, query, null);
     const sn = query['SN'] ?? query['sn'];
     this.logger.debug(`[HEARTBEAT] SN=${sn}`);
     res.setHeader('Content-Type', 'text/plain');
