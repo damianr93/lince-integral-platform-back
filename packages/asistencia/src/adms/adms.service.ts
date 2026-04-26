@@ -213,7 +213,7 @@ export class AdmsService {
     const status  = parseInt(parts[2] ?? '0', 10) as EstadoFichaje;
     const verify  = parts[3] ? parseInt(parts[3], 10) : null;
 
-    const time = new Date(timeStr);
+    const time = new Date(timeStr.replace(' ', 'T') + '-03:00');
     if (isNaN(time.getTime())) {
       this.logger.warn(`Fecha inválida: "${timeStr}"`);
       return null;
