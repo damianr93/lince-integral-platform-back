@@ -5,6 +5,8 @@ import { EstadoFichaje, FichajeEntity } from '../entities/fichaje.entity';
 import { EmpleadoEntity, Planta } from '../entities/empleado.entity';
 import { LogsService } from '../logs/logs.service';
 
+const AR_TZ = 'America/Argentina/Buenos_Aires';
+
 export interface ResumenDiario {
   fecha:    string;
   planta:   Planta | 'todas';
@@ -181,8 +183,8 @@ export class ReportsService {
       .createQueryBuilder('f')
       .where('f.empleadoId = :empleadoId', { empleadoId: empleado.id })
       .andWhere(
-        "f.tiempo >= (:desde::timestamp AT TIME ZONE 'UTC')" +
-          " AND f.tiempo < (:hasta::timestamp AT TIME ZONE 'UTC')",
+        "f.tiempo >= (:desde::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')" +
+          " AND f.tiempo < (:hasta::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')",
         {
           desde: `${desde} 00:00:00`,
           hasta: `${hastaExclusivo} 00:00:00`,
@@ -193,7 +195,7 @@ export class ReportsService {
 
     const byDay = new Map<string, FichajeEntity[]>();
     for (const fichaje of fichajes) {
-      const day = this.storedClockYmd(fichaje.tiempo);
+      const day = this.argentinaYmd(fichaje.tiempo);
       const arr = byDay.get(day) ?? [];
       arr.push(fichaje);
       byDay.set(day, arr);
@@ -307,31 +309,53 @@ export class ReportsService {
   private serializeReportFichaje(fichaje: FichajeEntity): ReportFichaje {
     return {
       id: fichaje.id,
-      tiempo: this.toStoredClockAsArgentinaIso(fichaje.tiempo),
+      tiempo: this.toArgentinaIso(fichaje.tiempo),
       estado: fichaje.estado,
     };
   }
 
-  private toStoredClockAsArgentinaIso(value: Date): string {
+  private toArgentinaIso(value: Date): string {
+    const parts = this.argentinaDateParts(value);
     const ymd = [
-      value.getUTCFullYear(),
-      String(value.getUTCMonth() + 1).padStart(2, '0'),
-      String(value.getUTCDate()).padStart(2, '0'),
+      this.datePart(parts, 'year'),
+      this.datePart(parts, 'month'),
+      this.datePart(parts, 'day'),
     ].join('-');
     const hms = [
-      String(value.getUTCHours()).padStart(2, '0'),
-      String(value.getUTCMinutes()).padStart(2, '0'),
-      String(value.getUTCSeconds()).padStart(2, '0'),
+      this.datePart(parts, 'hour'),
+      this.datePart(parts, 'minute'),
+      this.datePart(parts, 'second'),
     ].join(':');
     return `${ymd}T${hms}-03:00`;
   }
 
-  private storedClockYmd(value: Date): string {
+  private argentinaYmd(value: Date): string {
+    const parts = this.argentinaDateParts(value);
     return [
-      value.getUTCFullYear(),
-      String(value.getUTCMonth() + 1).padStart(2, '0'),
-      String(value.getUTCDate()).padStart(2, '0'),
+      this.datePart(parts, 'year'),
+      this.datePart(parts, 'month'),
+      this.datePart(parts, 'day'),
     ].join('-');
+  }
+
+  private argentinaDateParts(value: Date): Intl.DateTimeFormatPart[] {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: AR_TZ,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(value);
+  }
+
+  private datePart(
+    parts: Intl.DateTimeFormatPart[],
+    type: Intl.DateTimeFormatPartTypes,
+  ): string {
+    return parts.find((part) => part.type === type)?.value ?? '00';
   }
 
   private nextCalendarDayYmd(ymd: string): string {

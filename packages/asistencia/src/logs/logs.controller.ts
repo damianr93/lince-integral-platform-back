@@ -7,8 +7,6 @@ import { UpdateFichajeDto } from './dto/update-fichaje.dto';
 
 const AR_TZ = 'America/Argentina/Buenos_Aires';
 
-const pad2 = (value: number) => String(value).padStart(2, '0');
-
 function getDatePart(
   parts: Intl.DateTimeFormatPart[],
   type: Intl.DateTimeFormatPartTypes,
@@ -16,24 +14,7 @@ function getDatePart(
   return parts.find((part) => part.type === type)?.value ?? '00';
 }
 
-// Los fichajes de reloj están guardados como hora cruda en un timestamptz UTC.
-// Para RRHH exponemos esa hora de reloj como hora Argentina.
-function toStoredClockAsArgentinaIso(value: Date): string {
-  const ymd = [
-    value.getUTCFullYear(),
-    pad2(value.getUTCMonth() + 1),
-    pad2(value.getUTCDate()),
-  ].join('-');
-  const hms = [
-    pad2(value.getUTCHours()),
-    pad2(value.getUTCMinutes()),
-    pad2(value.getUTCSeconds()),
-  ].join(':');
-  return `${ymd}T${hms}-03:00`;
-}
-
-function fromArgentinaIsoToStoredClock(value: string): Date {
-  const instant = new Date(value);
+function toArgentinaIso(value: Date): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: AR_TZ,
     year: 'numeric',
@@ -43,18 +24,19 @@ function fromArgentinaIsoToStoredClock(value: string): Date {
     minute: '2-digit',
     second: '2-digit',
     hourCycle: 'h23',
-  }).formatToParts(instant);
+  }).formatToParts(value);
 
-  return new Date(
-    Date.UTC(
-      Number(getDatePart(parts, 'year')),
-      Number(getDatePart(parts, 'month')) - 1,
-      Number(getDatePart(parts, 'day')),
-      Number(getDatePart(parts, 'hour')),
-      Number(getDatePart(parts, 'minute')),
-      Number(getDatePart(parts, 'second')),
-    ),
-  );
+  const ymd = [
+    getDatePart(parts, 'year'),
+    getDatePart(parts, 'month'),
+    getDatePart(parts, 'day'),
+  ].join('-');
+  const hms = [
+    getDatePart(parts, 'hour'),
+    getDatePart(parts, 'minute'),
+    getDatePart(parts, 'second'),
+  ].join(':');
+  return `${ymd}T${hms}-03:00`;
 }
 
 @UseGuards(JwtAuthGuard)
@@ -65,7 +47,7 @@ export class LogsController {
   private serializeFichaje(fichaje: FichajeEntity) {
     return {
       ...fichaje,
-      tiempo: toStoredClockAsArgentinaIso(fichaje.tiempo),
+      tiempo: toArgentinaIso(fichaje.tiempo),
     };
   }
 
@@ -132,7 +114,7 @@ export class LogsController {
   ) {
     const updated = await this.service.updateById(id, {
       estado: dto.estado,
-      tiempo: dto.tiempo ? fromArgentinaIsoToStoredClock(dto.tiempo) : undefined,
+      tiempo: dto.tiempo ? new Date(dto.tiempo) : undefined,
       empleadoId: dto.empleadoId,
     });
     return this.serializeFichaje(updated);

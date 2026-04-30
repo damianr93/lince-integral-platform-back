@@ -117,10 +117,10 @@ export class LogsService {
 
     this.applyCommonFichajesFilters(qb, filter);
 
-    // `tiempo` conserva la hora cruda del reloj en UTC; el día de RRHH se filtra sobre esa hora.
+    // `tiempo` se guarda como instante UTC; RRHH filtra por día calendario Argentina.
     qb.andWhere(
-      "f.tiempo >= (:dayStart::timestamp AT TIME ZONE 'UTC')" +
-        " AND f.tiempo < (:dayEnd::timestamp AT TIME ZONE 'UTC')",
+      "f.tiempo >= (:dayStart::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')" +
+        " AND f.tiempo < (:dayEnd::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')",
       {
         dayStart: `${fechaDia} 00:00:00`,
         dayEnd: `${finYmd} 00:00:00`,
