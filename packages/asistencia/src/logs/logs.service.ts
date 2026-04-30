@@ -1,13 +1,17 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 import { FichajeEntity, EstadoFichaje } from '../entities/fichaje.entity';
 import { EmpleadoEntity, Planta } from '../entities/empleado.entity';
+
+const FECHA_YMD = /^\d{4}-\d{2}-\d{2}$/;
 
 export interface FichajesFilter {
   planta?:     Planta;
   empleadoId?: string;
   pin?:        string;
+  nombre?:     string;
+  fechaDia?:   string;
   desde?:      Date;
   hasta?:      Date;
   estado?:     EstadoFichaje;
@@ -33,7 +37,12 @@ export class LogsService {
   ) {}
 
   async findAll(filter: FichajesFilter = {}): Promise<{ items: FichajeEntity[]; total: number }> {
-    const { planta, empleadoId, pin, desde, hasta, estado, page = 1, limit = 50 } = filter;
+    const fechaDia = filter.fechaDia?.trim();
+    if (fechaDia) {
+      return this.findAllForCalendarDay({ ...filter, fechaDia });
+    }
+
+    const { desde, hasta, page = 1, limit = 50 } = filter;
     const pageNum = Math.max(1, Number(page) || 1);
     const limitNum = Math.min(200, Math.max(1, Number(limit) || 50));
 
@@ -42,10 +51,7 @@ export class LogsService {
       .leftJoinAndSelect('f.empleado', 'e')
       .orderBy('f.tiempo', 'DESC');
 
-    if (planta)     qb.andWhere('f.planta = :planta', { planta });
-    if (empleadoId) qb.andWhere('f.empleadoId = :empleadoId', { empleadoId });
-    if (pin)        qb.andWhere('f.pin = :pin', { pin });
-    if (estado !== undefined) qb.andWhere('f.estado = :estado', { estado });
+    this.applyCommonFichajesFilters(qb, filter);
 
     if (desde && hasta) {
       qb.andWhere('f.tiempo BETWEEN :desde AND :hasta', { desde, hasta });
@@ -60,6 +66,69 @@ export class LogsService {
       .take(limitNum)
       .getManyAndCount();
 
+    return { items, total };
+  }
+
+  private applyCommonFichajesFilters(
+    qb: SelectQueryBuilder<FichajeEntity>,
+    filter: Pick<FichajesFilter, 'planta' | 'empleadoId' | 'pin' | 'nombre' | 'estado'>,
+  ): void {
+    const { planta, empleadoId, pin, nombre, estado } = filter;
+    if (planta) qb.andWhere('f.planta = :planta', { planta });
+    if (empleadoId) qb.andWhere('f.empleadoId = :empleadoId', { empleadoId });
+    if (pin) qb.andWhere('f.pin = :pin', { pin });
+    if (estado !== undefined) qb.andWhere('f.estado = :estado', { estado });
+
+    const nombreTrim = nombre?.trim();
+    if (nombreTrim) {
+      const tokens = nombreTrim.toLowerCase().split(/\s+/).filter(Boolean);
+      const fullNameExpr =
+        "LOWER(TRIM(CONCAT(COALESCE(e.first_name, ''), ' ', COALESCE(e.last_name, ''))))";
+      qb.andWhere('e.id IS NOT NULL');
+      tokens.forEach((token, i) => {
+        qb.andWhere(`${fullNameExpr} LIKE :nombreTok${i}`, { [`nombreTok${i}`]: `%${token}%` });
+      });
+    }
+  }
+
+  private nextCalendarDayYmd(ymd: string): string {
+    const [y, m, d] = ymd.split('-').map((s) => parseInt(s, 10));
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + 1);
+    const yy = dt.getUTCFullYear();
+    const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getUTCDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+  }
+
+  private async findAllForCalendarDay(
+    filter: FichajesFilter & { fechaDia: string },
+  ): Promise<{ items: FichajeEntity[]; total: number }> {
+    const { fechaDia } = filter;
+    if (!FECHA_YMD.test(fechaDia)) {
+      throw new BadRequestException('fecha debe ser YYYY-MM-DD');
+    }
+    const finYmd = this.nextCalendarDayYmd(fechaDia);
+
+    const qb = this.repo
+      .createQueryBuilder('f')
+      .leftJoinAndSelect('f.empleado', 'e')
+      .orderBy('f.tiempo', 'DESC');
+
+    this.applyCommonFichajesFilters(qb, filter);
+
+    // `tiempo` conserva la hora cruda del reloj en UTC; el día de RRHH se filtra sobre esa hora.
+    qb.andWhere(
+      "f.tiempo >= (:dayStart::timestamp AT TIME ZONE 'UTC')" +
+        " AND f.tiempo < (:dayEnd::timestamp AT TIME ZONE 'UTC')",
+      {
+        dayStart: `${fechaDia} 00:00:00`,
+        dayEnd: `${finYmd} 00:00:00`,
+      },
+    );
+
+    const maxRows = 10000;
+    const [items, total] = await qb.take(maxRows).getManyAndCount();
     return { items, total };
   }
 

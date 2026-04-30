@@ -21,6 +21,13 @@ export class AdmsService {
   /** Mapeo SN de dispositivo → planta (se configura por variables de entorno) */
   private readonly devicePlantMap: Record<string, Planta>;
 
+  /**
+   * ZKTeco ADMS suele mandar `YYYY-MM-DD HH:mm:ss` **sin zona**. Con TimeZone=0 el reloj
+   * a menudo usa **UTC**; si aquí se asume Argentina (-03) los instantes quedan 3 h corridos.
+   * Ver ASISTENCIA_ATTLOG_TIMESTR_IS_UTC en .env.
+   */
+  private readonly attLogTimestrIsUtc: boolean;
+
   constructor(
     private readonly config: ConfigService,
     @InjectRepository(RawLogEntity)
@@ -38,6 +45,12 @@ export class AdmsService {
     if (snVillaNueva) this.devicePlantMap[snVillaNueva] = Planta.VILLA_NUEVA;
 
     this.logger.log(`Device→Planta map: ${JSON.stringify(this.devicePlantMap)}`);
+
+    const utcFlag = (this.config.get<string>('ASISTENCIA_ATTLOG_TIMESTR_IS_UTC') ?? '').toLowerCase();
+    this.attLogTimestrIsUtc = utcFlag === 'true' || utcFlag === '1' || utcFlag === 'yes';
+    this.logger.log(
+      `ATTLOG timestamp sin zona interpretado como: ${this.attLogTimestrIsUtc ? 'UTC (sufijo Z)' : 'hora Argentina (-03:00)'}`,
+    );
   }
 
   // ── Raw logging ────────────────────────────────────────────────────────────
@@ -213,7 +226,11 @@ export class AdmsService {
     const status  = parseInt(parts[2] ?? '0', 10) as EstadoFichaje;
     const verify  = parts[3] ? parseInt(parts[3], 10) : null;
 
-    const time = new Date(timeStr.replace(' ', 'T') + '-03:00');
+    const iso = timeStr.replace(' ', 'T');
+    const withZone = this.attLogTimestrIsUtc
+      ? (iso.endsWith('Z') ? iso : `${iso}Z`)
+      : `${iso}-03:00`;
+    const time = new Date(withZone);
     if (isNaN(time.getTime())) {
       this.logger.warn(`Fecha inválida: "${timeStr}"`);
       return null;

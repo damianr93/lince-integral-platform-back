@@ -1,20 +1,81 @@
 import { Controller, Get, Param, ParseUUIDPipe, Patch, Query, UseGuards, Body, Post } from '@nestjs/common';
 import { JwtAuthGuard } from '@lince/auth';
 import { Planta } from '../entities/empleado.entity';
-import { EstadoFichaje } from '../entities/fichaje.entity';
+import { EstadoFichaje, FichajeEntity } from '../entities/fichaje.entity';
 import { LogsService } from './logs.service';
 import { UpdateFichajeDto } from './dto/update-fichaje.dto';
+
+const AR_TZ = 'America/Argentina/Buenos_Aires';
+
+const pad2 = (value: number) => String(value).padStart(2, '0');
+
+function getDatePart(
+  parts: Intl.DateTimeFormatPart[],
+  type: Intl.DateTimeFormatPartTypes,
+): string {
+  return parts.find((part) => part.type === type)?.value ?? '00';
+}
+
+// Los fichajes de reloj están guardados como hora cruda en un timestamptz UTC.
+// Para RRHH exponemos esa hora de reloj como hora Argentina.
+function toStoredClockAsArgentinaIso(value: Date): string {
+  const ymd = [
+    value.getUTCFullYear(),
+    pad2(value.getUTCMonth() + 1),
+    pad2(value.getUTCDate()),
+  ].join('-');
+  const hms = [
+    pad2(value.getUTCHours()),
+    pad2(value.getUTCMinutes()),
+    pad2(value.getUTCSeconds()),
+  ].join(':');
+  return `${ymd}T${hms}-03:00`;
+}
+
+function fromArgentinaIsoToStoredClock(value: string): Date {
+  const instant = new Date(value);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: AR_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(instant);
+
+  return new Date(
+    Date.UTC(
+      Number(getDatePart(parts, 'year')),
+      Number(getDatePart(parts, 'month')) - 1,
+      Number(getDatePart(parts, 'day')),
+      Number(getDatePart(parts, 'hour')),
+      Number(getDatePart(parts, 'minute')),
+      Number(getDatePart(parts, 'second')),
+    ),
+  );
+}
 
 @UseGuards(JwtAuthGuard)
 @Controller('asistencia/logs')
 export class LogsController {
   constructor(private readonly service: LogsService) {}
 
+  private serializeFichaje(fichaje: FichajeEntity) {
+    return {
+      ...fichaje,
+      tiempo: toStoredClockAsArgentinaIso(fichaje.tiempo),
+    };
+  }
+
   @Get()
   async findAll(
     @Query('planta') planta?: Planta,
     @Query('empleadoId') empleadoId?: string,
     @Query('pin') pin?: string,
+    @Query('nombre') nombre?: string,
+    @Query('fecha') fecha?: string,
     @Query('desde') desde?: string,
     @Query('hasta') hasta?: string,
     @Query('estado') estado?: string,
@@ -26,23 +87,37 @@ export class LogsController {
         ? undefined
         : (Number(estado) as EstadoFichaje);
 
+    const fechaTrim = fecha?.trim();
     const result = await this.service.findAll({
       planta,
       empleadoId,
       pin,
-      desde: desde ? new Date(desde) : undefined,
-      hasta: hasta ? new Date(hasta) : undefined,
+      nombre,
+      fechaDia: fechaTrim || undefined,
+      desde: fechaTrim ? undefined : (desde ? new Date(desde) : undefined),
+      hasta: fechaTrim ? undefined : (hasta ? new Date(hasta) : undefined),
       estado: parsedEstado,
-      page: page ? Number(page) : undefined,
-      limit: limit ? Number(limit) : undefined,
+      page: fechaTrim ? undefined : (page ? Number(page) : undefined),
+      limit: fechaTrim ? undefined : (limit ? Number(limit) : undefined),
     });
+
+    if (fechaTrim) {
+      return {
+        items: result.items.map((item) => this.serializeFichaje(item)),
+        total: result.total,
+        fecha: fechaTrim,
+        page: 1,
+        pages: 1,
+        limit: result.total,
+      };
+    }
 
     const pageNum = Math.max(1, Number(page) || 1);
     const limitNum = Math.min(200, Math.max(1, Number(limit) || 50));
     const pages = Math.max(1, Math.ceil(result.total / limitNum));
 
     return {
-      items: result.items,
+      items: result.items.map((item) => this.serializeFichaje(item)),
       total: result.total,
       page: pageNum,
       limit: limitNum,
@@ -55,11 +130,12 @@ export class LogsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateFichajeDto,
   ) {
-    return this.service.updateById(id, {
+    const updated = await this.service.updateById(id, {
       estado: dto.estado,
-      tiempo: dto.tiempo ? new Date(dto.tiempo) : undefined,
+      tiempo: dto.tiempo ? fromArgentinaIsoToStoredClock(dto.tiempo) : undefined,
       empleadoId: dto.empleadoId,
     });
+    return this.serializeFichaje(updated);
   }
 
   @Post('reconcile-unmatched')

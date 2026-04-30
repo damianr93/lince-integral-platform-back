@@ -9,7 +9,35 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 (BigInt.prototype as any).toJSON = function () { return this.toString(); };
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const allowedOrigins = (process.env['ALLOWED_ORIGINS'] ?? 'http://localhost:5173')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const localhostOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: false,
+    cors: {
+      origin: (origin, callback) => {
+        if (!origin) {
+          callback(null, true);
+          return;
+        }
+        if (allowedOrigins.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+        if (localhostOrigin.test(origin)) {
+          callback(null, true);
+          return;
+        }
+        callback(null, false);
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    },
+  });
 
   app.use(
     '/iclock',
@@ -26,18 +54,6 @@ async function bootstrap() {
     }),
   );
   app.use(urlencoded({ limit: '10mb', extended: true }));
-
-  // CORS — acepta origenes de la variable de entorno
-  const allowedOrigins = (process.env['ALLOWED_ORIGINS'] ?? 'http://localhost:5173')
-    .split(',')
-    .map((o) => o.trim());
-
-  app.enableCors({
-    origin: allowedOrigins,
-    credentials: true,
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  });
 
   // Validación global con class-validator
   app.useGlobalPipes(
