@@ -7,10 +7,16 @@
 import { ExtractedFields } from '../../ocr.types';
 import { ValidationRule } from './remito.rules';
 
-/** CUIT argentino: XX-XXXXXXXX-X o XXXXXXXXXXX (11 dígitos) */
+/** CUIT argentino: 11 dígitos con dígito verificador válido (algoritmo AFIP). */
 function isValidCuit(value: string): boolean {
-  const digits = value.replace(/[-\s]/g, '');
-  return /^\d{11}$/.test(digits);
+  const digits = value.replace(/\D/g, '');
+  if (!/^\d{11}$/.test(digits)) return false;
+  const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  const sum = weights.reduce((acc, w, i) => acc + w * +digits[i], 0);
+  const rem = sum % 11;
+  const check = rem === 0 ? 0 : 11 - rem;
+  if (check === 10) return false;
+  return check === +digits[10];
 }
 
 /** Importe: número con puntos/comas como separadores */
@@ -26,7 +32,7 @@ export const RETENCION_RULES: ValidationRule[] = [
     field: 'cuitEmisor',
     validate: (v) =>
       v && !isValidCuit(v)
-        ? `CUIT '${v}' inválido — debe tener 11 dígitos (XX-XXXXXXXX-X)`
+        ? `CUIT '${v}' inválido — 11 dígitos requeridos con dígito verificador correcto`
         : null,
   },
   {

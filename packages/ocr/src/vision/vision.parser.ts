@@ -1,18 +1,8 @@
 /**
- * VisionParser — Extracción de campos desde la respuesta de Google Cloud Vision
+ * VisionParser — Extracción de campos desde texto OCR crudo
  *
- * Google Vision devuelve texto crudo detectado en la imagen.
- * Este módulo contiene la lógica de parsing para extraer campos estructurados
- * tanto de REMITOS como de FACTURAS argentinas.
- *
- * Estrategia:
- *  1. TEXT_DETECTION de Vision devuelve bloques de texto con coordenadas.
- *  2. El texto completo se normaliza y se aplican expresiones regulares
- *     para extraer cada campo.
- *  3. Donde las regex no son suficientes se usan heurísticas de proximidad.
- *
- * IMPORTANTE: Los patrones aquí son un punto de partida sólido.
- * Ajustar según los documentos reales del cliente (proveedores, formatos, etc.)
+ * Retención: pipeline de candidatos + scoring contextual (no regex rígida).
+ * Remito / Factura: regex estructuradas (formato fijo conocido).
  */
 
 export interface RemitoFields {
@@ -62,12 +52,9 @@ export interface RetencionFields {
   rawText:      string;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers generales ─────────────────────────────────────────────────────────
 
-/** Normaliza espacios y saltos de línea del texto raw de Vision.
- *  .normalize('NFC') convierte caracteres descompuestos (NFD) — frecuente en PDFs y
- *  en la salida de Document AI — a forma precompuesta, para que los regex con [oó]
- *  funcionen correctamente. */
+/** NFC + espacios/tabs/CR normalizados — necesario para que regex [oó] funcionen con PDFs. */
 function normalizeText(raw: string): string {
   return raw
     .normalize('NFC')
@@ -77,11 +64,7 @@ function normalizeText(raw: string): string {
     .trim();
 }
 
-/**
- * Busca el primer match de un patrón en el texto.
- * Devuelve el grupo de captura 1 si existe, o el match completo.
- * Devuelve '' si no hay match.
- */
+/** Extrae el grupo 1 del primer match, o '' si no hay match. */
 function extract(text: string, pattern: RegExp): string {
   const m = pattern.exec(text);
   if (!m) return '';
@@ -131,46 +114,135 @@ const REMITO_PATTERNS = {
   domicilioTransportista: /Domicilio:\s*\n([^\n]{2,80})/i,
 };
 
-// ── Patterns — Retención SI.CO.RE. ────────────────────────────────────────────
+// ── Retención: pipeline candidatos + scoring ───────────────────────────────────
+
+interface RetencionCandidate {
+  raw: string;
+  value: string;
+  score: number;
+  reason: string;
+  pos: number;
+}
 
 /**
- * Patrones para certificados de retención ARCA (SI.CO.RE.).
- *
- * Estructura del documento:
- *  - Sección A: Datos del Agente de Retención → su CUIT
- *  - Sección B: Datos del Sujeto Retenido (Lince S.A.)
- *  - Sección C: Datos de la Retención → impuesto + monto
- *
- * En el texto raw de OCR, el CUIT del emisor aparece antes de
- * la marca "C.U.I.T. Nº" del sujeto retenido.
+ * Dígito verificador CUIT/CUIL argentino (algoritmo AFIP).
+ * Exportado para poder testearlo de forma aislada.
  */
-const RETENCION_PATTERNS = {
-  // CUIT del Agente de Retención:
-  // Estrategia 1 — aparece justo antes de "C.U.I.T. N" del retenido en el texto raw
-  cuitEmisorBeforeRetenido: /(\d{2}[-\s]\d{7,8}[-\s]\d)[\s\n]+C\.U\.I\.T\.?\s*N[º°]/i,
-
-  // Estrategia 2 — etiqueta explícita "C.U.I.T. N° :" de sección A (con signo °)
-  cuitEmisorLabel: /C\.U\.I\.T\.?\s+N[°]\s*:?\s*(\d{2}[-\s]\d{7,8}[-\s]\d)/i,
-
-  // Estrategia 3 — primer CUIT en el documento (sección A precede a sección B)
-  cuitFirst: /(\d{2}-\d{7,8}-\d)/,
-
-  // Document AI devuelve etiqueta y valor en líneas separadas (tabla 2 columnas):
-  //   "Monto de la Retención\n: NO\n:\n$ 436.116,34"
-  // [\s\S]{0,120}? cruza saltos de línea de forma no-codiciosa hasta encontrar el "$"
-  monto: /Monto\s+de\s+la\s+Retenci.n[\s\S]{0,120}?\$\s*([\d.,]+)/i,
-
-  // Último recurso: importe de dinero con formato argentino DESPUÉS de "IMPORTE RETENIDO" o "Total Retenido"
-  montoFallback: /(?:Importe\s+Retenido|Total\s+Retenido)\s*:?\s*\$?\s*([\d.,]+)/i,
-};
+export function validateCuitChecksum(normalized: string): boolean {
+  const digits = normalized.replace(/\D/g, '');
+  if (digits.length !== 11) return false;
+  const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  const sum = weights.reduce((acc, w, i) => acc + w * +digits[i], 0);
+  const rem = sum % 11;
+  const check = rem === 0 ? 0 : 11 - rem;
+  if (check === 10) return false; // matemáticamente imposible en un CUIT real
+  return check === +digits[10];
+}
 
 /**
- * Clasifica el texto del campo "Impuesto" en "GANANCIAS" o "IIBB".
- * Devuelve '' si no coincide con ninguno.
+ * Extrae todos los candidatos CUIT del texto con su score de contexto.
+ * Acepta variantes: XX-XXXXXXXX-X / XX XXXXXXXX X / 20.123.456.789 / 11 dígitos juntos.
  */
+function extractCuitCandidates(text: string): RetencionCandidate[] {
+  // Broad: captura secuencias de 11 dígitos con separadores opcionales [-.\s]
+  // Límite superior 20 para cubrir casilleros impresos donde OCR lee cada dígito separado por espacio
+  const CUIT_RE = /(?<!\d)(\d[\d.\-\s]{9,20}\d)(?!\d)/g;
+  const candidates: RetencionCandidate[] = [];
+  let m: RegExpExecArray | null;
+
+  while ((m = CUIT_RE.exec(text)) !== null) {
+    const raw = m[1];
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length !== 11) continue;
+
+    const value = `${digits.slice(0, 2)}-${digits.slice(2, 10)}-${digits.slice(10)}`;
+    const pos = m.index;
+    const before = text.slice(Math.max(0, pos - 200), pos).toLowerCase();
+
+    let score = 0;
+    const reasons: string[] = [];
+
+    if (/agente\s+de\s+retenci[oó]n/.test(before)) { score += 4; reasons.push('agente-retención:+4'); }
+    else if (/agente/.test(before))                  { score += 2; reasons.push('agente:+2'); }
+    if (/emisor/.test(before))                       { score += 2; reasons.push('emisor:+2'); }
+    if (/c\.?u\.?i\.?t\.?\s*n[°º]/i.test(before.slice(-80))) { score += 1; reasons.push('label-cuit:+1'); }
+
+    // El CUIT del beneficiario/retenido (Lince S.A.) aparece bajo estas secciones
+    if (/beneficiario/.test(before.slice(-200)))          { score -= 3; reasons.push('beneficiario:-3'); }
+    if (/retenido|sujeto\s+retenido/.test(before.slice(-200))) { score -= 3; reasons.push('retenido:-3'); }
+
+    if (validateCuitChecksum(value))  { score += 2; reasons.push('checksum:+2'); }
+    else                              { score -= 3; reasons.push('checksum-fail:-3'); }
+
+    candidates.push({ raw, value, score, reason: reasons.join(','), pos });
+  }
+
+  return candidates;
+}
+
+/**
+ * Extrae todos los candidatos de monto con su score de contexto.
+ * Soporta formato argentino (1.234,56), US (1,234.56), sin separadores (1234,56).
+ */
+function extractMontoCandidates(text: string): RetencionCandidate[] {
+  // Captura: 1.234,56 / 1,234.56 / 50,00 / 50.00 — requiere exactamente 2 decimales
+  const AMOUNT_RE = /(?<!\d)(\d{1,3}(?:[.,\s]\d{3})*[.,]\d{2})(?!\d|\s*%)/g;
+  const candidates: RetencionCandidate[] = [];
+  let m: RegExpExecArray | null;
+
+  while ((m = AMOUNT_RE.exec(text)) !== null) {
+    const raw = m[1];
+    const allDigits = raw.replace(/[.,\s]/g, '');
+
+    // Filtrar años (2024, 2025…) y valores < $1
+    if (/^20\d{2}$/.test(allDigits)) continue;
+    const numericVal = parseInt(allDigits, 10) / 100;
+    if (isNaN(numericVal) || numericVal < 1) continue;
+
+    const pos = m.index;
+    const before = text.slice(Math.max(0, pos - 150), pos).toLowerCase();
+
+    let score = 0;
+    const reasons: string[] = [];
+
+    if (/monto\s+de\s+la\s+retenci[oó]n/.test(before))   { score += 5; reasons.push('monto-retención:+5'); }
+    else if (/monto/.test(before))                         { score += 3; reasons.push('monto:+3'); }
+    // "Retención Practicada" es el label en formularios RG 830 AFIP (manuscritos)
+    if (/retenci[oó]n\s+practicada/.test(before))         { score += 5; reasons.push('retención-practicada:+5'); }
+    if (/importe\s+retenido/.test(before))                 { score += 4; reasons.push('importe-retenido:+4'); }
+    else if (/importe/.test(before))                       { score += 2; reasons.push('importe:+2'); }
+    if (/total\s+retenido/.test(before))                   { score += 4; reasons.push('total-retenido:+4'); }
+    else if (/total/.test(before))                         { score += 1; reasons.push('total:+1'); }
+    if (/retenido/.test(before))                           { score += 1; reasons.push('retenido:+1'); }
+    // "Son $ XXX" es la casilla final del formulario RG 830 — siempre es la retención
+    if (/\bson\b/.test(before.slice(-30)))                 { score += 3; reasons.push('son-casilla:+3'); }
+    if (/\$\s*$/.test(before.slice(-15)))                  { score += 1; reasons.push('$-nearby:+1'); }
+    // "Importe del Pago" es el monto bruto, NO la retención — penalizar
+    if (/importe\s+del\s+pago/.test(before))               { score -= 3; reasons.push('importe-del-pago:-3'); }
+
+    candidates.push({ raw, value: raw, score, reason: reasons.join(','), pos });
+  }
+
+  return candidates;
+}
+
+/** Log de diagnóstico activado con OCR_DEBUG=true — no expone datos en producción. */
+function debugOcr(field: string, chosen: RetencionCandidate | null, total: number): void {
+  if (process.env.OCR_DEBUG !== 'true') return;
+  if (!chosen) {
+    console.debug(`[OCR-Ret] ${field}: sin candidatos`);
+  } else {
+    console.debug(
+      `[OCR-Ret] ${field}: elegido="${chosen.value}" score=${chosen.score} motivo="${chosen.reason}" total_candidatos=${total}`,
+    );
+  }
+}
+
+/** Clasifica el impuesto en "GANANCIAS" | "IIBB" | '' — busca en todo el texto.
+ *  [il] cubre la confusión I↔l frecuente en OCR de manuscritos. */
 function classifyImpuesto(text: string): string {
-  if (/Ingresos?\s+Brutos?|I\.?I\.?B\.?B\.?/i.test(text)) return 'IIBB';
-  if (/Ganancias/i.test(text)) return 'GANANCIAS';
+  if (/ingresos?\s+brutos?|i\.?i\.?b\.?b\.?/i.test(text)) return 'IIBB';
+  if (/gananc[il]as|imp(?:uesto)?\s+a\s+las\s+ganancias/i.test(text)) return 'GANANCIAS';
   return '';
 }
 
@@ -274,24 +346,25 @@ export function parseFacturaText(rawText: string): FacturaFields {
 
 /**
  * Parsea el texto OCR de un certificado de RETENCIÓN (SI.CO.RE.) y extrae los campos.
+ * Usa pipeline de candidatos + scoring contextual en lugar de regex únicas.
  * Los campos no detectados quedan como string vacío ''.
  */
 export function parseRetencionText(rawText: string): RetencionFields {
   const text = normalizeText(rawText);
 
-  // CUIT del Agente de Retención — tres estrategias en orden de confianza
-  const cuitEmisor = normalizeCuit(
-    extract(text, RETENCION_PATTERNS.cuitEmisorBeforeRetenido) ||
-    extract(text, RETENCION_PATTERNS.cuitEmisorLabel) ||
-    extract(text, RETENCION_PATTERNS.cuitFirst),
-  );
+  const cuitCandidates = extractCuitCandidates(text);
+  cuitCandidates.sort((a, b) => b.score - a.score);
+  const bestCuit = cuitCandidates[0] ?? null;
+  debugOcr('cuitEmisor', bestCuit, cuitCandidates.length);
+  const cuitEmisor = bestCuit?.value ?? '';
 
-  // Tipo de impuesto — buscar en todo el texto
   const tipoImpuesto = classifyImpuesto(text);
 
-  const monto =
-    extract(text, RETENCION_PATTERNS.monto) ||
-    extract(text, RETENCION_PATTERNS.montoFallback);
+  const montoCandidates = extractMontoCandidates(text);
+  montoCandidates.sort((a, b) => b.score - a.score);
+  const bestMonto = montoCandidates[0] ?? null;
+  debugOcr('monto', bestMonto, montoCandidates.length);
+  const monto = bestMonto?.value ?? '';
 
   return { cuitEmisor, tipoImpuesto, monto, rawText: text };
 }

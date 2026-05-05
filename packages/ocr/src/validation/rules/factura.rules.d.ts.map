@@ -1,1 +1,0 @@
-{"version":3,"file":"factura.rules.d.ts","sourceRoot":"","sources":["factura.rules.ts"],"names":[],"mappings":"AAAA;;;;;GAKG;AAEH,OAAO,EAAE,eAAe,EAAE,MAAM,iBAAiB,CAAC;AAClD,OAAO,EAAE,cAAc,EAAE,MAAM,gBAAgB,CAAC;AAqBhD,eAAO,MAAM,aAAa,EAAE,cAAc,EA6CzC,CAAC;AAEF;;;;;GAKG;AACH,wBAAgB,eAAe,CAC7B,MAAM,EAAE,eAAe,EACvB,cAAc,EAAE,MAAM,EAAE,GACvB,MAAM,EAAE,CAuBV"}
