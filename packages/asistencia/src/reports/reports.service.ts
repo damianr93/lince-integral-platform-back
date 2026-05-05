@@ -172,7 +172,7 @@ export class ReportsService {
       throw new BadRequestException('desde no puede ser mayor que hasta');
     }
 
-    const horasEsperadasPorDia = Math.max(0, Number(params.horasEsperadasPorDia ?? 8) || 0);
+    const horasEsperadasPorDia = Math.max(0, Number(params.horasEsperadasPorDia ?? 9) || 0);
     const empleado = await this.empleadoRepo.findOne({ where: { id: params.empleadoId } });
     if (!empleado) {
       throw new NotFoundException('Empleado no encontrado');

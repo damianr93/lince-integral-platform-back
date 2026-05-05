@@ -43,7 +43,7 @@ export class ReportsController {
     return this.service.getEmployeeHistory(id, limit);
   }
 
-  /** GET /api/asistencia/reports/employee/:id/range?desde=2026-04-01&hasta=2026-04-30&horasEsperadasPorDia=8 */
+  /** GET /api/asistencia/reports/employee/:id/range?desde=2026-04-01&hasta=2026-04-30&horasEsperadasPorDia=9 */
   @Get('employee/:id/range')
   getEmployeeRangeReport(
     @Param('id', ParseUUIDPipe) id: string,

@@ -10,9 +10,13 @@ interface ParsedPunch {
   pin:    string;
   pinRaw: string;
   time:   Date;
+  timeSource: 'local' | 'utc' | 'auto-local' | 'auto-utc';
   status: EstadoFichaje;
   verify: number | null;
 }
+
+type AttLogTimeMode = 'auto' | 'local' | 'utc';
+type AttLogAutoFallback = 'local' | 'utc';
 
 @Injectable()
 export class AdmsService {
@@ -22,11 +26,13 @@ export class AdmsService {
   private readonly devicePlantMap: Record<string, Planta>;
 
   /**
-   * ZKTeco ADMS suele mandar `YYYY-MM-DD HH:mm:ss` **sin zona**. Con TimeZone=0 el reloj
-   * a menudo usa **UTC**; si aquí se asume Argentina (-03) los instantes quedan 3 h corridos.
-   * Ver ASISTENCIA_ATTLOG_TIMESTR_IS_UTC en .env.
+   * ZKTeco ADMS suele mandar `YYYY-MM-DD HH:mm:ss` **sin zona**. Algunos relojes lo mandan
+   * como hora Argentina y otros como UTC. En modo auto elegimos el candidato más cercano
+   * a la hora de recepción cuando el envío parece en tiempo real.
    */
-  private readonly attLogTimestrIsUtc: boolean;
+  private readonly attLogTimeMode: AttLogTimeMode;
+  private readonly attLogAutoFallback: AttLogAutoFallback;
+  private readonly attLogAutoWindowMs: number;
 
   constructor(
     private readonly config: ConfigService,
@@ -46,10 +52,11 @@ export class AdmsService {
 
     this.logger.log(`Device→Planta map: ${JSON.stringify(this.devicePlantMap)}`);
 
-    const utcFlag = (this.config.get<string>('ASISTENCIA_ATTLOG_TIMESTR_IS_UTC') ?? '').toLowerCase();
-    this.attLogTimestrIsUtc = utcFlag === 'true' || utcFlag === '1' || utcFlag === 'yes';
+    this.attLogTimeMode = this.resolveAttLogTimeMode();
+    this.attLogAutoFallback = this.resolveAttLogAutoFallback();
+    this.attLogAutoWindowMs = this.resolveAttLogAutoWindowMs();
     this.logger.log(
-      `ATTLOG timestamp sin zona interpretado como: ${this.attLogTimestrIsUtc ? 'UTC (sufijo Z)' : 'hora Argentina (-03:00)'}`,
+      `ATTLOG timestamp sin zona: modo=${this.attLogTimeMode}, fallback=${this.attLogAutoFallback}, ventanaAuto=${Math.round(this.attLogAutoWindowMs / 60000)}min`,
     );
   }
 
@@ -112,7 +119,8 @@ export class AdmsService {
 
   async processPunchPayload(body: string, sn: string | undefined): Promise<number> {
     const planta = sn ? (this.devicePlantMap[sn] ?? null) : null;
-    const punches = this.parsePunchLines(body);
+    const receivedAt = new Date();
+    const punches = this.parsePunchLines(body, receivedAt);
 
     if (punches.length === 0) {
       this.logger.debug(`Sin fichajes en payload — SN: ${sn}`);
@@ -125,7 +133,7 @@ export class AdmsService {
     for (const punch of punches) {
       const isDuplicate = await this.isDuplicate(punch.pin, punch.time);
       if (isDuplicate) {
-        this.logger.debug(`Duplicado ignorado — PIN: ${punch.pin}, tiempo: ${punch.time.toISOString()}`);
+        this.logger.debug(`Duplicado ignorado — PIN: ${punch.pin}, tiempo: ${punch.time.toISOString()}, modo: ${punch.timeSource}`);
         continue;
       }
 
@@ -177,13 +185,13 @@ export class AdmsService {
    *   ATTLOG\t<PIN>\t<YYYY-MM-DD HH:mm:ss>\t<Status>\t<Verify>\t...
    * También soporta formato sin prefijo ATTLOG, solo campos separados por tab o espacio.
    */
-  private parsePunchLines(body: string): ParsedPunch[] {
+  private parsePunchLines(body: string, receivedAt = new Date()): ParsedPunch[] {
     const punches: ParsedPunch[] = [];
     const lines = body.split(/\r?\n/).filter((l) => l.trim().length > 0);
 
     for (const line of lines) {
       try {
-        const punch = this.parseSingleLine(line);
+        const punch = this.parseSingleLine(line, receivedAt);
         if (punch) punches.push(punch);
       } catch (err) {
         this.logger.warn(`No se pudo parsear línea: "${line}" — ${(err as Error).message}`);
@@ -193,7 +201,7 @@ export class AdmsService {
     return punches;
   }
 
-  private parseSingleLine(line: string): ParsedPunch | null {
+  private parseSingleLine(line: string, receivedAt: Date): ParsedPunch | null {
     const trimmed = line.trim();
 
     // Ignorar cabeceras del protocolo
@@ -226,17 +234,39 @@ export class AdmsService {
     const status  = parseInt(parts[2] ?? '0', 10) as EstadoFichaje;
     const verify  = parts[3] ? parseInt(parts[3], 10) : null;
 
-    const iso = timeStr.replace(' ', 'T');
-    const withZone = this.attLogTimestrIsUtc
-      ? (iso.endsWith('Z') ? iso : `${iso}Z`)
-      : `${iso}-03:00`;
-    const time = new Date(withZone);
+    const parsedTime = this.parseAttLogTime(timeStr, receivedAt);
+    const { time } = parsedTime;
     if (isNaN(time.getTime())) {
       this.logger.warn(`Fecha inválida: "${timeStr}"`);
       return null;
     }
 
-    return { pin, pinRaw, time, status, verify };
+    return { pin, pinRaw, time, timeSource: parsedTime.source, status, verify };
+  }
+
+  private parseAttLogTime(
+    timeStr: string,
+    receivedAt: Date,
+  ): { time: Date; source: ParsedPunch['timeSource'] } {
+    const iso = timeStr.replace(' ', 'T');
+    const utcTime = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
+    const localTime = new Date(`${iso}-03:00`);
+
+    if (this.attLogTimeMode === 'utc') return { time: utcTime, source: 'utc' };
+    if (this.attLogTimeMode === 'local') return { time: localTime, source: 'local' };
+
+    const utcDiff = Math.abs(utcTime.getTime() - receivedAt.getTime());
+    const localDiff = Math.abs(localTime.getTime() - receivedAt.getTime());
+
+    if (utcDiff <= this.attLogAutoWindowMs || localDiff <= this.attLogAutoWindowMs) {
+      return utcDiff < localDiff
+        ? { time: utcTime, source: 'auto-utc' }
+        : { time: localTime, source: 'auto-local' };
+    }
+
+    return this.attLogAutoFallback === 'utc'
+      ? { time: utcTime, source: 'utc' }
+      : { time: localTime, source: 'local' };
   }
 
   /**
@@ -297,5 +327,30 @@ export class AdmsService {
       .where('e.pin IN (:...pins)', { pins: candidates })
       .orderBy('LENGTH(e.pin)', 'ASC')
       .getOne();
+  }
+
+  private resolveAttLogTimeMode(): AttLogTimeMode {
+    const mode = (this.config.get<string>('ASISTENCIA_ATTLOG_TIMESTR_MODE') ?? '').trim().toLowerCase();
+    if (mode === 'auto' || mode === 'local' || mode === 'argentina' || mode === 'utc') {
+      return mode === 'argentina' ? 'local' : mode;
+    }
+
+    const legacyFlag = (this.config.get<string>('ASISTENCIA_ATTLOG_TIMESTR_IS_UTC') ?? '').trim().toLowerCase();
+    if (legacyFlag) {
+      return legacyFlag === 'true' || legacyFlag === '1' || legacyFlag === 'yes' ? 'utc' : 'local';
+    }
+
+    return 'auto';
+  }
+
+  private resolveAttLogAutoFallback(): AttLogAutoFallback {
+    const fallback = (this.config.get<string>('ASISTENCIA_ATTLOG_TIMESTR_AUTO_FALLBACK') ?? '').trim().toLowerCase();
+    return fallback === 'utc' ? 'utc' : 'local';
+  }
+
+  private resolveAttLogAutoWindowMs(): number {
+    const minutes = Number(this.config.get<string>('ASISTENCIA_ATTLOG_AUTO_WINDOW_MINUTES') ?? '90');
+    const safeMinutes = Number.isFinite(minutes) && minutes > 0 ? minutes : 90;
+    return safeMinutes * 60 * 1000;
   }
 }
