@@ -109,7 +109,7 @@ export class AdmsService {
       'Delay=10',
       'TransTimes=00:00;14:05',
       'TransInterval=1',
-      'TimeZone=0',
+      'TimeZone=-180',
       'ServerVer=2.4.1 2015-01-13',
       'PushProtVer=2.4.1',
     ].join('\n');
