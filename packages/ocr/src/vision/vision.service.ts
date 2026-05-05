@@ -153,7 +153,10 @@ export class VisionService {
     const { rawText: _unusedRaw, ...fallbackFields } = parsedByText;
     void _unusedRaw;
 
-    const merged = mergeFields(primary, fallbackFields as ExtractedFields);
+    const merged =
+      docType === DocumentType.RETENCION
+        ? mergeRetencionFields(primary, fallbackFields as ExtractedFields, rawText)
+        : mergeFields(primary, fallbackFields as ExtractedFields);
 
     return { fields: merged, rawText };
   }
@@ -273,9 +276,14 @@ export class VisionService {
       this.pickFirst(entityMap, ['monto_retencion', 'retention_amount', 'total_tax_amount', 'tax_amount']) ||
       this.pickFirst(formMap,   ['monto_de_la_retenci_n', 'monto_retencion', 'monto']);
 
+    const provinciaRaw =
+      this.pickFirst(entityMap, ['provincia', 'province', 'jurisdiccion', 'jurisdiction']) ||
+      this.pickFirst(formMap,   ['provincia', 'jurisdiccion']);
+
     return pruneEmpty({
       cuitEmisor:   normalizeCuit(cuitRaw),
       tipoImpuesto: classifyImpuesto(impuestoRaw),
+      provincia:    normalizeProvinciaRaw(provinciaRaw),
       monto:        montoRaw,
     });
   }
@@ -513,6 +521,7 @@ export class VisionService {
     const hasProcessorConfigured =
       !!this.documentAi.facturaProcessorId ||
       !!this.documentAi.remitoProcessorId ||
+      !!this.documentAi.retencionProcessorId ||
       !!this.documentAi.ocrProcessorId;
 
     if (!this.documentAi.projectId || !hasProcessorConfigured) {
@@ -657,6 +666,62 @@ function mergeFields(primary: ExtractedFields, fallback: ExtractedFields): Extra
   return pruneEmpty(merged);
 }
 
+function mergeRetencionFields(
+  primary: ExtractedFields,
+  fallback: ExtractedFields,
+  rawText: string,
+): ExtractedFields {
+  const merged = mergeFields(primary, fallback);
+  const primaryMonto = primary['monto'];
+  const fallbackMonto = fallback['monto'];
+
+  if (
+    primaryMonto &&
+    fallbackMonto &&
+    primaryMonto.trim() !== fallbackMonto.trim() &&
+    shouldPreferParsedRetencionMonto(primaryMonto, fallbackMonto, rawText)
+  ) {
+    merged['monto'] = fallbackMonto.trim();
+  }
+
+  return pruneEmpty(merged);
+}
+
+function shouldPreferParsedRetencionMonto(primaryMonto: string, fallbackMonto: string, rawText: string): boolean {
+  const primaryValue = parseLooseAmount(primaryMonto);
+  const fallbackValue = parseLooseAmount(fallbackMonto);
+
+  if (primaryValue == null || fallbackValue == null) return false;
+  if (!/(total\s+retenido|monto\s+de\s+la\s+retenci[oó]n|retenci[oó]n\s+practicada|neto\s+a\s+retener|importe\s+a\s+retener)/i.test(rawText)) {
+    return false;
+  }
+
+  const primaryLooksLikeRate = /%/.test(primaryMonto) || primaryValue <= 100;
+  const textHasDiscriminatedRetention = /(neto\s+a\s+retener|importe\s+a\s+retener|retenciones?\s+discriminad[ao]s?)/i.test(rawText);
+  if (textHasDiscriminatedRetention) return fallbackValue !== primaryValue;
+  return primaryLooksLikeRate && fallbackValue > primaryValue;
+}
+
+function parseLooseAmount(raw: string): number | null {
+  const clean = raw.trim();
+  if (!clean) return null;
+
+  const lastComma = clean.lastIndexOf(',');
+  const lastDot = clean.lastIndexOf('.');
+  const decimalIndex = Math.max(lastComma, lastDot);
+
+  if (decimalIndex === -1) {
+    const integerOnly = clean.replace(/\D/g, '');
+    return integerOnly ? Number(integerOnly) : null;
+  }
+
+  const integerPart = clean.slice(0, decimalIndex).replace(/\D/g, '');
+  const decimalPart = clean.slice(decimalIndex + 1).replace(/\D/g, '').padEnd(2, '0').slice(0, 2);
+
+  if (!integerPart || !decimalPart) return null;
+  return Number(`${integerPart}.${decimalPart}`);
+}
+
 function pruneEmpty(fields: ExtractedFields): ExtractedFields {
   const out: ExtractedFields = {};
 
@@ -677,6 +742,12 @@ function normalizeCuit(raw: string): string {
   const digits = raw.replace(/\D/g, '');
   if (digits.length !== 11) return raw;
   return `${digits.slice(0, 2)}-${digits.slice(2, 10)}-${digits.slice(10)}`;
+}
+
+function normalizeProvinciaRaw(raw: string): string {
+  const clean = raw.trim();
+  if (!/[a-záéíóúñ]/i.test(clean)) return '';
+  return clean;
 }
 
 /** Clasifica el campo impuesto en "GANANCIAS" | "IIBB" | "" */

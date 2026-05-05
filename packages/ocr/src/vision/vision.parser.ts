@@ -47,6 +47,8 @@ export interface RetencionFields {
   cuitEmisor:   string;
   /** Tipo de impuesto: "GANANCIAS" | "IIBB" */
   tipoImpuesto: string;
+  /** Provincia / jurisdicción IIBB si el comprobante la informa */
+  provincia:    string;
   /** Monto de la retención — ej: "436.116,34" */
   monto:        string;
   rawText:      string;
@@ -185,8 +187,8 @@ function extractCuitCandidates(text: string): RetencionCandidate[] {
  * Soporta formato argentino (1.234,56), US (1,234.56), sin separadores (1234,56).
  */
 function extractMontoCandidates(text: string): RetencionCandidate[] {
-  // Captura: 1.234,56 / 1,234.56 / 50,00 / 50.00 — requiere exactamente 2 decimales
-  const AMOUNT_RE = /(?<!\d)(\d{1,3}(?:[.,\s]\d{3})*[.,]\d{2})(?!\d|\s*%)/g;
+  // Captura: 1.234,56 / 1,234.56 / 24142.92 / 50,00 / 50.00 — requiere 2 decimales.
+  const AMOUNT_RE = /(?<!\d)(\d+(?:[.,]\d{3})*[.,]\d{2})(?!\d|\s*%)/g;
   const candidates: RetencionCandidate[] = [];
   let m: RegExpExecArray | null;
 
@@ -201,17 +203,21 @@ function extractMontoCandidates(text: string): RetencionCandidate[] {
 
     const pos = m.index;
     const before = text.slice(Math.max(0, pos - 150), pos).toLowerCase();
+    const lineStart = text.lastIndexOf('\n', pos) + 1;
+    const lineEndRaw = text.indexOf('\n', pos);
+    const lineEnd = lineEndRaw === -1 ? text.length : lineEndRaw;
+    const line = text.slice(lineStart, lineEnd).toLowerCase();
 
     let score = 0;
     const reasons: string[] = [];
 
-    if (/monto\s+de\s+la\s+retenci[oó]n/.test(before))   { score += 5; reasons.push('monto-retención:+5'); }
+    if (/monto\s+de\s+la\s+retenci[oó]n/.test(before) || /monto\s+de\s+la\s+retenci[oó]n/.test(line)) { score += 5; reasons.push('monto-retención:+5'); }
     else if (/monto/.test(before))                         { score += 3; reasons.push('monto:+3'); }
     // "Retención Practicada" es el label en formularios RG 830 AFIP (manuscritos)
-    if (/retenci[oó]n\s+practicada/.test(before))         { score += 5; reasons.push('retención-practicada:+5'); }
-    if (/importe\s+retenido/.test(before))                 { score += 4; reasons.push('importe-retenido:+4'); }
+    if (/retenci[oó]n\s+practicada/.test(before) || /retenci[oó]n\s+practicada/.test(line)) { score += 5; reasons.push('retención-practicada:+5'); }
+    if (/importe\s+retenido/.test(before) || /importe\s+retenido/.test(line)) { score += 4; reasons.push('importe-retenido:+4'); }
     else if (/importe/.test(before))                       { score += 2; reasons.push('importe:+2'); }
-    if (/total\s+retenido/.test(before))                   { score += 4; reasons.push('total-retenido:+4'); }
+    if (/total\s+retenido/.test(before) || /total\s+retenido/.test(line)) { score += 5; reasons.push('total-retenido:+5'); }
     else if (/total/.test(before))                         { score += 1; reasons.push('total:+1'); }
     if (/retenido/.test(before))                           { score += 1; reasons.push('retenido:+1'); }
     // "Son $ XXX" es la casilla final del formulario RG 830 — siempre es la retención
@@ -219,11 +225,176 @@ function extractMontoCandidates(text: string): RetencionCandidate[] {
     if (/\$\s*$/.test(before.slice(-15)))                  { score += 1; reasons.push('$-nearby:+1'); }
     // "Importe del Pago" es el monto bruto, NO la retención — penalizar
     if (/importe\s+del\s+pago/.test(before))               { score -= 3; reasons.push('importe-del-pago:-3'); }
+    if (/(al[ií]cuota|alic)/i.test(line) && !/total\s+retenido/.test(line)) { score -= 8; reasons.push('alícuota:-8'); }
+    else if (/(al[ií]cuota|alic)/i.test(before.slice(-60)) && numericVal <= 100) { score -= 6; reasons.push('alícuota-nearby:-6'); }
 
-    candidates.push({ raw, value: raw, score, reason: reasons.join(','), pos });
+    candidates.push({ raw, value: normalizeAmount(raw), score, reason: reasons.join(','), pos });
   }
 
+  const discriminated = extractDiscriminatedMontoCandidate(text);
+  if (discriminated) candidates.push(discriminated);
+
   return candidates;
+}
+
+function extractDiscriminatedMontoCandidate(text: string): RetencionCandidate | null {
+  const lines = text.split('\n');
+  const anchorIndex = findDiscriminatedRetentionAnchor(lines);
+
+  if (anchorIndex === -1) return null;
+
+  const groupedByRate = extractDiscriminatedMontoByRateGroups(lines, anchorIndex);
+  if (groupedByRate) return groupedByRate;
+
+  const amounts: Array<{ raw: string; cents: number }> = [];
+  const endIndex = Math.min(lines.length, anchorIndex + 14);
+
+  for (let i = anchorIndex + 1; i < endIndex; i += 1) {
+    const line = lines[i];
+    if (/^\s*(firma|observaciones?|constancia|certificado)\b/i.test(line)) break;
+    if (/total\s+retenido/i.test(line)) break;
+    if (/(al[ií]cuota|alic|base\s+(?:imponible|c[aá]lculo)|neto\s+a\s+retener)/i.test(line)) continue;
+
+    const matches = line.match(/\d+(?:[.,]\d{3})*[.,]\d{2}(?!\s*%)/g) ?? [];
+    const rowAmounts = matches.length > 1 ? matches.slice(-1) : matches;
+    for (const raw of rowAmounts) {
+      const cents = parseAmountToCents(raw);
+      if (cents == null || cents < 100) continue;
+      amounts.push({ raw, cents });
+    }
+  }
+
+  if (amounts.length < 2) return null;
+
+  const totalCents = amounts.reduce((acc, amount) => acc + amount.cents, 0);
+  const pos = lines.slice(0, anchorIndex + 1).join('\n').length;
+
+  return {
+    raw: amounts.map((amount) => amount.raw).join(' + '),
+    value: formatCentsArg(totalCents),
+    score: 6,
+    reason: `retención-discriminada-sum:+6 (${amounts.length} conceptos)`,
+    pos,
+  };
+}
+
+function findDiscriminatedRetentionAnchor(lines: string[]): number {
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const next = lines[i + 1] ?? '';
+    const joined = `${line} ${next}`;
+
+    if (/(neto\s+a\s+retener|importe\s+a\s+retener|detalle\s+de\s+retenciones|retenciones?\s+discriminad[ao]s?)/i.test(line)) {
+      return i;
+    }
+
+    if (/(neto\s+a|importe\s+a)\s*$/i.test(line) && /^\s*retener\b/i.test(next)) {
+      return i + 1;
+    }
+
+    if (/(neto\s+a\s+retener|importe\s+a\s+retener)/i.test(joined)) {
+      return i + 1;
+    }
+  }
+
+  return -1;
+}
+
+function extractDiscriminatedMontoByRateGroups(lines: string[], anchorIndex: number): RetencionCandidate | null {
+  const blockLines: string[] = [];
+  const endIndex = Math.min(lines.length, anchorIndex + 28);
+
+  for (let i = anchorIndex + 1; i < endIndex; i += 1) {
+    const line = lines[i];
+    if (/^\s*(comprobante|orden\s+de\s+pago|total:|son\s+pesos|firma|observaciones?|constancia|certificado)\b/i.test(line)) break;
+    blockLines.push(line);
+  }
+
+  const groups: Array<Array<{ raw: string; cents: number }>> = [];
+  let currentGroup: Array<{ raw: string; cents: number }> | null = null;
+
+  for (const line of blockLines) {
+    const amounts = [...line.matchAll(/\d+(?:[.,]\d{3})*[.,]\d{2}(?!\s*%)/g)]
+      .map((match) => ({
+        raw: match[0],
+        cents: parseAmountToCents(match[0]),
+      }))
+      .filter((match): match is { raw: string; cents: number } => match.cents != null);
+
+    if (amounts.length === 0) continue;
+
+    const rateIndex = amounts.findIndex((amount) => amount.cents <= 10_000);
+    if (rateIndex !== -1) {
+      if (currentGroup?.length) groups.push(currentGroup);
+      currentGroup = [];
+      currentGroup.push(...amounts.slice(rateIndex + 1).filter((amount) => amount.cents > 10_000));
+      continue;
+    }
+
+    if (!currentGroup) continue;
+
+    const retentionAmounts = amounts.filter((amount) => amount.cents > 10_000);
+    if (retentionAmounts.length === 0) continue;
+
+    const looksLikeNextBaseRow =
+      currentGroup.length > 0 &&
+      retentionAmounts.length >= 2 &&
+      retentionAmounts.some((amount) => amount.cents >= 100_000_000);
+
+    if (looksLikeNextBaseRow) {
+      groups.push(currentGroup);
+      currentGroup = null;
+      continue;
+    }
+
+    currentGroup.push(...retentionAmounts);
+  }
+
+  if (currentGroup?.length) groups.push(currentGroup);
+
+  const netAmounts = groups
+    .map((group) => group[group.length - 1])
+    .filter((amount): amount is { raw: string; cents: number } => !!amount);
+
+  if (netAmounts.length < 2) return null;
+
+  const totalCents = netAmounts.reduce((acc, amount) => acc + amount.cents, 0);
+  const pos = lines.slice(0, anchorIndex + 1).join('\n').length;
+
+  return {
+    raw: netAmounts.map((amount) => amount.raw).join(' + '),
+    value: formatCentsArg(totalCents),
+    score: 9,
+    reason: `neto-a-retener-rate-groups:+9 (${netAmounts.length} conceptos)`,
+    pos,
+  };
+}
+
+function parseAmountToCents(raw: string): number | null {
+  const clean = raw.trim();
+  const lastComma = clean.lastIndexOf(',');
+  const lastDot = clean.lastIndexOf('.');
+  const decimalIndex = Math.max(lastComma, lastDot);
+
+  if (decimalIndex === -1) return null;
+
+  const integerPart = clean.slice(0, decimalIndex).replace(/\D/g, '');
+  const decimalPart = clean.slice(decimalIndex + 1).replace(/\D/g, '').padEnd(2, '0').slice(0, 2);
+  if (!integerPart || decimalPart.length !== 2) return null;
+
+  return Number(integerPart) * 100 + Number(decimalPart);
+}
+
+function formatCentsArg(cents: number): string {
+  const integerPart = Math.floor(cents / 100);
+  const decimalPart = String(cents % 100).padStart(2, '0');
+  const withThousands = String(integerPart).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${withThousands},${decimalPart}`;
+}
+
+function normalizeAmount(raw: string): string {
+  const cents = parseAmountToCents(raw);
+  return cents == null ? raw : formatCentsArg(cents);
 }
 
 /** Log de diagnóstico activado con OCR_DEBUG=true — no expone datos en producción. */
@@ -244,6 +415,71 @@ function classifyImpuesto(text: string): string {
   if (/ingresos?\s+brutos?|i\.?i\.?b\.?b\.?/i.test(text)) return 'IIBB';
   if (/gananc[il]as|imp(?:uesto)?\s+a\s+las\s+ganancias/i.test(text)) return 'GANANCIAS';
   return '';
+}
+
+const ARGENTINA_PROVINCES: Array<{ name: string; patterns: RegExp[] }> = [
+  { name: 'Buenos Aires', patterns: [/\bbuenos\s+aires\b/] },
+  { name: 'Ciudad Autónoma de Buenos Aires', patterns: [/\bciudad\s+autonoma\s+de\s+buenos\s+aires\b/, /\bcaba\b/, /\bc\.?\s*a\.?\s*b\.?\s*a\.?\b/, /\bcapital\s+federal\b/] },
+  { name: 'Catamarca', patterns: [/\bcatamarca\b/] },
+  { name: 'Chaco', patterns: [/\bchaco\b/] },
+  { name: 'Chubut', patterns: [/\bchubut\b/] },
+  { name: 'Córdoba', patterns: [/\bcordoba\b/] },
+  { name: 'Corrientes', patterns: [/\bcorrientes\b/] },
+  { name: 'Entre Ríos', patterns: [/\bentre\s+rios\b/] },
+  { name: 'Formosa', patterns: [/\bformosa\b/] },
+  { name: 'Jujuy', patterns: [/\bjujuy\b/] },
+  { name: 'La Pampa', patterns: [/\bla\s+pampa\b/] },
+  { name: 'La Rioja', patterns: [/\bla\s+rioja\b/] },
+  { name: 'Mendoza', patterns: [/\bmendoza\b/] },
+  { name: 'Misiones', patterns: [/\bmisiones\b/] },
+  { name: 'Neuquén', patterns: [/\bneuquen\b/] },
+  { name: 'Río Negro', patterns: [/\brio\s+negro\b/] },
+  { name: 'Salta', patterns: [/\bsalta\b/] },
+  { name: 'San Juan', patterns: [/\bsan\s+juan\b/] },
+  { name: 'San Luis', patterns: [/\bsan\s+luis\b/] },
+  { name: 'Santa Cruz', patterns: [/\bsanta\s+cruz\b/] },
+  { name: 'Santa Fe', patterns: [/\bsanta\s+fe\b/] },
+  { name: 'Santiago del Estero', patterns: [/\bsantiago\s+del\s+estero\b/] },
+  { name: 'Tierra del Fuego', patterns: [/\btierra\s+del\s+fuego\b/] },
+  { name: 'Tucumán', patterns: [/\btucuman\b/] },
+];
+
+function extractProvincia(text: string): string {
+  const normalized = stripDiacritics(text).toLowerCase();
+  let best: { name: string; score: number; pos: number } | null = null;
+
+  for (const province of ARGENTINA_PROVINCES) {
+    for (const pattern of province.patterns) {
+      const re = new RegExp(pattern.source, 'gi');
+      let match: RegExpExecArray | null;
+
+      while ((match = re.exec(normalized)) !== null) {
+        const pos = match.index;
+        const lineStart = normalized.lastIndexOf('\n', pos) + 1;
+        const lineEndRaw = normalized.indexOf('\n', pos);
+        const lineEnd = lineEndRaw === -1 ? normalized.length : lineEndRaw;
+        const line = normalized.slice(lineStart, lineEnd);
+        const window = normalized.slice(Math.max(0, pos - 180), Math.min(normalized.length, pos + 180));
+
+        let score = 0;
+        if (/(direccion\s+general\s+de\s+rentas|rentas|arba|agip|ater|atm|ministerio|provincia|jurisdiccion|ingresos\s+brutos|iibb|i\.i\.b\.b|convenio\s+multilateral)/.test(window)) {
+          score += 5;
+        }
+        if (pos < 900) score += 2;
+        if (/(domicilio|direccion|calle|av\.?|avenida|ruta|localidad)/.test(line)) score -= 3;
+
+        if (!best || score > best.score || (score === best.score && pos < best.pos)) {
+          best = { name: province.name, score, pos };
+        }
+      }
+    }
+  }
+
+  return best && best.score > 0 ? best.name : '';
+}
+
+function stripDiacritics(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 // ── Patterns — Factura Argentina ──────────────────────────────────────────────
@@ -359,6 +595,7 @@ export function parseRetencionText(rawText: string): RetencionFields {
   const cuitEmisor = bestCuit?.value ?? '';
 
   const tipoImpuesto = classifyImpuesto(text);
+  const provincia = tipoImpuesto === 'IIBB' ? extractProvincia(text) : '';
 
   const montoCandidates = extractMontoCandidates(text);
   montoCandidates.sort((a, b) => b.score - a.score);
@@ -366,7 +603,7 @@ export function parseRetencionText(rawText: string): RetencionFields {
   debugOcr('monto', bestMonto, montoCandidates.length);
   const monto = bestMonto?.value ?? '';
 
-  return { cuitEmisor, tipoImpuesto, monto, rawText: text };
+  return { cuitEmisor, tipoImpuesto, provincia, monto, rawText: text };
 }
 
 function extractTipo(text: string): string {

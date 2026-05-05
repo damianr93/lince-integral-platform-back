@@ -68,6 +68,7 @@ describe('parseRetencionText', () => {
     const IIBB_TEXT = `
       Agente de Retención
       33-53534712-9
+      Dirección General de Rentas Santiago del Estero
       Ingresos Brutos — Res. 123/2024
       Sujeto Retenido: LINCE
       30-71002420-7
@@ -80,6 +81,10 @@ describe('parseRetencionText', () => {
 
     it('extrae monto con etiqueta "Importe Retenido"', () => {
       expect(parseRetencionText(IIBB_TEXT).monto).toBe('15.000,00');
+    });
+
+    it('extrae provincia si la jurisdicción IIBB aparece en el texto', () => {
+      expect(parseRetencionText(IIBB_TEXT).provincia).toBe('Santiago del Estero');
     });
   });
 
@@ -94,6 +99,29 @@ describe('parseRetencionText', () => {
 
     it('detecta "Ingresos Brutos"', () => {
       expect(parseRetencionText('33-53534712-9 Ingresos Brutos $ 100,00').tipoImpuesto).toBe('IIBB');
+    });
+
+    it('detecta provincia con acentos o sin acentos', () => {
+      expect(parseRetencionText('IIBB Provincia de Cordoba Monto $ 100,00').provincia).toBe('Córdoba');
+      expect(parseRetencionText('Ingresos Brutos Dirección General de Rentas Tucumán $ 100,00').provincia).toBe('Tucumán');
+    });
+
+    it('detecta CABA como Ciudad Autónoma de Buenos Aires', () => {
+      expect(parseRetencionText('IIBB Jurisdicción CABA Monto $ 100,00').provincia).toBe('Ciudad Autónoma de Buenos Aires');
+    });
+  });
+
+  describe('provincia opcional', () => {
+    it('no extrae provincia desde domicilios en certificados de Ganancias', () => {
+      const text = `
+        Comprobante de impuesto a las Ganancias
+        Agente de Retención 33-53534712-9
+        Beneficiario LINCE S.A.
+        Domicilio: Villa Nueva - Córdoba
+        Monto de la Retención $ 1.000,00
+      `;
+
+      expect(parseRetencionText(text).provincia).toBe('');
     });
   });
 
@@ -143,6 +171,113 @@ describe('parseRetencionText', () => {
     it('elige el monto más cercano a "Monto de la Retención"', () => {
       const { monto } = parseRetencionText(MULTI_MONTO);
       expect(monto).toBe('6.000,00');
+    });
+  });
+
+  describe('retenciones discriminadas', () => {
+    it('suma conceptos debajo de "Neto a retener"', () => {
+      const text = `
+        Certificado de retención IIBB
+        Agente de Retención 33-53534712-9
+        Sujeto retenido LINCE S.A. 30-71002420-7
+        Neto a retener
+        Retención IIBB Córdoba 12.300,10
+        Retención IIBB Santa Fe 4.500,20
+        Retención IIBB Buenos Aires 1.199,70
+      `;
+
+      expect(parseRetencionText(text).monto).toBe('18.000,00');
+    });
+
+    it('suma la última columna cuando las filas bajo "Neto a Retener" traen la tabla completa', () => {
+      const text = `
+        Certificado de Retención Imp. a las Ganancias
+        Agente de Retención 33-53534712-9
+        Sujeto retenido LINCE S.A. 30-71002420-7
+        Importe Neto Acumulado Mínimo No Alcanzado Base Imponible Alícuota Importe a Retener Acumulado Retención Neto a Retener
+        2.461.975,45 2.461.975,45 224.000,00 2.237.975,45 2,00 44.759,51 44.759,51 44.759,51
+        2.076.795,07 4.538.770,52 224.000,00 4.314.770,52 2,00 8.625,47 86.255,41 8.625,47
+        2.325.869,67 6.864.640,19 224.000,00 6.640.640,19 2,00 132.812,80 86.255,41 132.812,80
+      `;
+
+      expect(parseRetencionText(text).monto).toBe('186.197,78');
+    });
+
+    it('suma netos a retener cuando Document AI lee la tabla por grupos de alícuota', () => {
+      const text = `
+        CERTIFICADO DE RETENCION
+        IMP.A LAS GANANCIAS
+        CUIT: 30-50068944-3
+        30-70736032-8
+        Importe
+        Importe
+        Neto
+        Acumulado
+        Minimo
+        No Alcanzado Imponible
+        Base
+        Monto
+        Fijo Ret.
+        Exedente Alicuota Importe
+        Gravado
+        a Retener
+        Acumulado
+        Retención
+        Neto a
+        Retener
+        2,461,975.45
+        2,461,975.45
+        2,076,795.07
+        224,000.00 2,237,975.45
+        4,538,770.52 224,000.00 4,314,770.52
+        2.00
+        44,759.51
+        44,759.51
+        2.00
+        86,295.41 44,759.51 41,535.90
+        2,325,869.67 6,864,640.19 224,000.00 6,640,640.19
+        2.00
+        132,812.80
+        86,295.41
+        46,517.39
+        Comprobante
+      `;
+
+      expect(parseRetencionText(text).monto).toBe('132.812,80');
+    });
+
+    it('elige Total retenido y no la alícuota cuando ambos aparecen como importes', () => {
+      const text = `
+        Certificado de retención IIBB
+        Agente de Retención 33-53534712-9
+        Base imponible 50.000,00
+        Alicuota 3,00
+        Total retenido 1.500,00
+      `;
+
+      expect(parseRetencionText(text).monto).toBe('1.500,00');
+    });
+
+    it('lee Total Retenido con punto decimal y no toma Alícuota', () => {
+      const text = `
+        Impuesto sobre los Ingresos Brutos
+        Comprobante de Retención
+        DIRECCIÓN GENERAL DE RENTAS SANTIAGO DEL ESTERO
+        Datos del Agente de Retención
+        CUIT N°: 30715133209
+        ESTANCIA EL DUENDE SRL
+        Datos del Sujeto Retenido
+        CUIT N°: 30707360328
+        LINCE S.A.
+        Detalle de Liquidación
+        Total Comprobante 1947528,78
+        Neto 1609527,92
+        Alícuota : 1,50
+        Total Calculado: $ 24142.92
+        Total Retenido: $ 24142.92
+      `;
+
+      expect(parseRetencionText(text).monto).toBe('24.142,92');
     });
   });
 
