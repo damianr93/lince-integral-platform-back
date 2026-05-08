@@ -14,8 +14,8 @@ export class SendSingleDto {
   templateLanguage: string;
 
   @IsString()
-  @IsIn(['EZEQUIEL', 'DENIS', 'MARTIN'])
-  advisor: 'EZEQUIEL' | 'DENIS' | 'MARTIN';
+  @IsIn(['EZEQUIEL', 'DENIS', 'MARTIN', 'JULIAN'])
+  advisor: 'EZEQUIEL' | 'DENIS' | 'MARTIN' | 'JULIAN';
 
   @IsOptional()
   @IsString()

@@ -51,6 +51,7 @@ export class MarketingService {
       EZEQUIEL: this.config.get<string>('YCLOUD_PHONE_ID_EZEQUIEL', ''),
       DENIS: this.config.get<string>('YCLOUD_PHONE_ID_DENIS', ''),
       MARTIN: this.config.get<string>('YCLOUD_PHONE_ID_MARTIN', ''),
+      JULIAN: this.config.get<string>('YCLOUD_PHONE_ID_JULIAN', ''),
     };
     const id = map[key];
     return id && id.trim().length > 0 ? id.trim() : null;
@@ -79,6 +80,7 @@ export class MarketingService {
       { key: 'YCLOUD_WABA_ID_EZEQUIEL', label: 'Ezequiel' },
       { key: 'YCLOUD_WABA_ID_DENIS', label: 'Denis' },
       { key: 'YCLOUD_WABA_ID_MARTIN', label: 'Martin' },
+      { key: 'YCLOUD_WABA_ID_JULIAN', label: 'Julian' },
     ];
     for (const { key, label } of advisors) {
       const id = this.config.get<string>(key, '').trim();
