@@ -105,6 +105,12 @@ export class CustomersService {
     private readonly config: ConfigService,
   ) {}
 
+  private mapDoc(doc: any) {
+    if (!doc) return doc;
+    const { _id, __v, ...rest } = doc;
+    return { id: _id?.toString(), ...rest };
+  }
+
   async create(dto: CreateCustomerDto) {
     try {
       this.validateClientData(dto);
@@ -158,7 +164,7 @@ export class CustomersService {
     try {
       const clients = await this.clientModel.find().lean().sort({ createdAt: -1 });
       this.logger.log(`Se obtuvieron ${clients.length} clientes`);
-      return clients;
+      return clients.map((c) => this.mapDoc(c));
     } catch (error) {
       this.logger.error(`Error al obtener clientes: ${(error as Error).message}`, (error as Error).stack);
       throw new InternalServerErrorException(
@@ -177,7 +183,7 @@ export class CustomersService {
         throw new NotFoundException(`Cliente con ID ${id} no encontrado`);
       }
 
-      return client;
+      return this.mapDoc(client);
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
@@ -230,7 +236,7 @@ export class CustomersService {
 
       await this.scheduleFollowUpSafely(updated as unknown as Customer, previousStatus ?? null);
 
-      return updated;
+      return this.mapDoc(updated);
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
