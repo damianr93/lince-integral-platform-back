@@ -199,7 +199,7 @@ export class CreateCustomerDto {
   observaciones?: string;
 
   @ApiProperty({
-    enum: ['EZEQUIEL', 'DENIS', 'MARTIN', 'SIN_ASIGNAR'],
+    enum: ['EZEQUIEL', 'DENIS', 'MARTIN', 'JULIAN', 'SIN_ASIGNAR'],
     default: 'SIN_ASIGNAR',
     description: 'Quién está siguiendo al cliente',
   })
@@ -208,7 +208,7 @@ export class CreateCustomerDto {
   @Transform(({ value }) =>
     typeof value === 'string' ? value.toUpperCase() : value,
   )
-  siguiendo?: 'EZEQUIEL' | 'DENIS' | 'MARTIN' | 'SIN_ASIGNAR';
+  siguiendo?: 'EZEQUIEL' | 'DENIS' | 'MARTIN' | 'JULIAN' | 'SIN_ASIGNAR';
 
   @ApiProperty({
     enum: ['INSTAGRAM', 'WEB', 'WHATSAPP', 'FACEBOOK', 'OTRO'],

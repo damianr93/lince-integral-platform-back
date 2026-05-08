@@ -417,7 +417,7 @@ export class CustomersService {
       dto.siguiendo = this.cleanCrmData(dto.siguiendo);
       if (dto.siguiendo) {
         const validAdvisors = this.config
-          .get<string>('CRM_ADVISORS', 'EZEQUIEL,DENIS,MARTIN')
+          .get<string>('CRM_ADVISORS', 'EZEQUIEL,DENIS,MARTIN,JULIAN')
           .split(',')
           .map((s) => s.trim().toUpperCase())
           .concat(['SIN_ASIGNAR']);

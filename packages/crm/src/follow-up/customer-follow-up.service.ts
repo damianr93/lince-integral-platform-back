@@ -485,6 +485,10 @@ export class CustomerFollowUpService {
         email: this.config.get<string>('CRM_ADVISOR_MARTIN_EMAIL', ''),
         displayName: 'Martín',
       },
+      JULIAN: {
+        email: this.config.get<string>('CRM_ADVISOR_JULIAN_EMAIL', ''),
+        displayName: 'Julián',
+      },
       SIN_ASIGNAR: {
         email: this.config.get<string>('CRM_ADVISOR_SIN_ASIGNAR_EMAIL', ''),
         displayName: 'equipo comercial',

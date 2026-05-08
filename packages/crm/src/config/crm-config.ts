@@ -1,7 +1,7 @@
 export function getCrmEnvs(get: (key: string) => string | undefined) {
   return {
     EXTERNAL_FIXED_TOKEN: get('EXTERNAL_FIXED_TOKEN') ?? '',
-    CRM_ADVISORS: (get('CRM_ADVISORS') ?? 'EZEQUIEL,DENIS,MARTIN')
+    CRM_ADVISORS: (get('CRM_ADVISORS') ?? 'EZEQUIEL,DENIS,MARTIN,JULIAN')
       .split(',')
       .map((s) => s.trim().toUpperCase())
       .filter(Boolean),
@@ -14,6 +14,7 @@ export function getCrmEnvs(get: (key: string) => string | undefined) {
     FOLLOW_UP_NOTIFY_EZEQUIEL_EMAIL: get('CRM_ADVISOR_EZEQUIEL_EMAIL') ?? '',
     FOLLOW_UP_NOTIFY_DENIS_EMAIL: get('CRM_ADVISOR_DENIS_EMAIL') ?? '',
     FOLLOW_UP_NOTIFY_MARTIN_EMAIL: get('CRM_ADVISOR_MARTIN_EMAIL') ?? '',
+    FOLLOW_UP_NOTIFY_JULIAN_EMAIL: get('CRM_ADVISOR_JULIAN_EMAIL') ?? '',
     FOLLOW_UP_NOTIFY_SIN_ASIGNAR_EMAIL: get('CRM_ADVISOR_SIN_ASIGNAR_EMAIL') ?? '',
     FOLLOW_UP_NOTIFY_DEFAULT_EMAIL: get('CRM_ADVISOR_DEFAULT_EMAIL') ?? '',
   };

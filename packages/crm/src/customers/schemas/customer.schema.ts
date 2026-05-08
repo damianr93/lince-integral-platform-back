@@ -25,7 +25,7 @@ export interface Customer extends Document {
   actividad?: 'CRIA' | 'RECRIA' | 'MIXTO' | 'DISTRIBUIDOR';
   medioAdquisicion?: 'INSTAGRAM' | 'WEB' | 'WHATSAPP' | 'FACEBOOK' | 'OTRO';
   estado?: 'PENDIENTE' | 'DERIVADO_A_DISTRIBUIDOR' | 'NO_CONTESTO' | 'SE_COTIZO_Y_PENDIENTE' | 'SE_COTIZO_Y_NO_INTERESO' | 'COMPRO';
-  siguiendo?: 'EZEQUIEL' | 'DENIS' | 'MARTIN' | 'SIN_ASIGNAR';
+  siguiendo?: 'EZEQUIEL' | 'DENIS' | 'MARTIN' | 'JULIAN' | 'SIN_ASIGNAR';
   observaciones?: string;
   createdAt?: Date;
   isReconsulta?: boolean;
@@ -72,7 +72,7 @@ export const CustomerSchema = new Schema<Customer>(
     },
     siguiendo: {
       type: String,
-      enum: ['EZEQUIEL', 'DENIS', 'MARTIN', 'SIN_ASIGNAR'],
+      enum: ['EZEQUIEL', 'DENIS', 'MARTIN', 'JULIAN', 'SIN_ASIGNAR'],
       default: 'SIN_ASIGNAR',
     },
     observaciones: String,
