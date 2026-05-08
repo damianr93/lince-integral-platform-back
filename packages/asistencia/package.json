@@ -19,9 +19,12 @@
     "@lince/database": "workspace:*",
     "@lince/types": "workspace:*",
     "@nestjs/mapped-types": "*",
+    "@nestjs/schedule": "^4.1.2",
     "@nestjs/typeorm": "^10.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
+    "exceljs": "^4.4.0",
+    "nodemailer": "^6.9.0",
     "typeorm": "^0.3.20"
   },
   "peerDependencies": {
@@ -38,6 +41,7 @@
     "@repo/typescript-config": "workspace:*",
     "@types/express": "^5.0.1",
     "@types/node": "^22.15.3",
+    "@types/nodemailer": "^6.4.17",
     "typescript": "5.9.2"
   }
 }

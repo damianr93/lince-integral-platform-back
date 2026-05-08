@@ -24,6 +24,28 @@ export interface ResumenDiario {
   }[];
 }
 
+export interface DetalleEmpleadoDia {
+  empleadoId:   string | null;
+  pin:          string;
+  nombre:       string;
+  dni:          string | null;
+  departamento: string | null;
+  cargo:        string | null;
+  entrada:      Date | null;
+  salida:       Date | null;
+  completo:     boolean;
+}
+
+export interface ResumenDiarioExtendido {
+  fecha:     string;
+  planta:    Planta | 'todas';
+  entradas:  number;
+  salidas:   number;
+  presentes: number;
+  ausentes:  number;
+  detalle:   DetalleEmpleadoDia[];
+}
+
 export interface EmpleadoPresente {
   empleadoId:  string | null;
   pin:         string;
@@ -243,6 +265,51 @@ export class ReportsService {
         saldoMs: trabajadoMs - esperadoMs,
       },
       dias,
+    };
+  }
+
+  // ── Resumen de un día específico (para reportes programados) ─────────────
+
+  async getDailySummaryForDate(ymd: string, planta?: Planta): Promise<ResumenDiarioExtendido> {
+    const { items: fichajes } = await this.logsService.findAll({ fechaDia: ymd, planta });
+    const empleados = await this.empleadoRepo.find({
+      where: { activo: true, ...(planta ? { planta } : {}) },
+    });
+
+    const byPin = new Map<string, { entradas: FichajeEntity[]; salidas: FichajeEntity[] }>();
+    for (const f of fichajes) {
+      if (!byPin.has(f.pin)) byPin.set(f.pin, { entradas: [], salidas: [] });
+      if (f.estado === EstadoFichaje.ENTRADA) byPin.get(f.pin)!.entradas.push(f);
+      else                                    byPin.get(f.pin)!.salidas.push(f);
+    }
+
+    const detalle: DetalleEmpleadoDia[] = empleados.map((emp) => {
+      const fichs = byPin.get(emp.pin);
+      const primeraEntrada = fichs?.entradas.sort((a, b) => +a.tiempo - +b.tiempo)[0]?.tiempo ?? null;
+      const ultimaSalida   = fichs?.salidas.sort((a, b) => +b.tiempo - +a.tiempo)[0]?.tiempo ?? null;
+      return {
+        empleadoId:   emp.id,
+        pin:          emp.pin,
+        nombre:       `${emp.firstName} ${emp.lastName}`,
+        dni:          emp.dni,
+        departamento: emp.departamento,
+        cargo:        emp.cargo,
+        entrada:      primeraEntrada,
+        salida:       ultimaSalida,
+        completo:     !!primeraEntrada && !!ultimaSalida,
+      };
+    });
+
+    const presentes = detalle.filter((d) => d.entrada && !d.salida).length;
+
+    return {
+      fecha:    ymd,
+      planta:   planta ?? 'todas',
+      entradas: fichajes.filter((f) => f.estado === EstadoFichaje.ENTRADA).length,
+      salidas:  fichajes.filter((f) => f.estado === EstadoFichaje.SALIDA).length,
+      presentes,
+      ausentes: empleados.length - detalle.filter((d) => d.entrada).length,
+      detalle,
     };
   }
 

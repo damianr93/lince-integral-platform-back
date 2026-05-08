@@ -11,6 +11,8 @@ import { LogsService }         from './logs/logs.service';
 import { LogsController }      from './logs/logs.controller';
 import { ReportsController }   from './reports/reports.controller';
 import { ReportsService }      from './reports/reports.service';
+import { ReportMailerService }    from './reports/report-mailer.service';
+import { ReportSchedulerService } from './reports/report-scheduler.service';
 import { DebugController }     from './debug/debug.controller';
 
 @Module({
@@ -29,6 +31,8 @@ import { DebugController }     from './debug/debug.controller';
     EmployeesService,
     LogsService,
     ReportsService,
+    ReportMailerService,
+    ReportSchedulerService,
   ],
   exports: [AdmsService, EmployeesService, LogsService, ReportsService],
 })
