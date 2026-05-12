@@ -188,7 +188,7 @@ export class DocumentsService {
   async getStatus(id: string, user: AuthUser) {
     const doc = await this.docRepo.findOne({
       where:  { id },
-      select: ['id', 'status', 'validationErrors', 'updatedAt'],
+      select: ['id', 'status', 'validationErrors', 'updatedAt', 'uploadedBy'],
     });
     if (!doc) throw new NotFoundException(`Documento ${id} no encontrado`);
     this.assertCanView(doc, user);
