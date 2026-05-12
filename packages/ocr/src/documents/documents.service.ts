@@ -471,8 +471,10 @@ export class DocumentsService {
   }
 
   private getOcrRole(user: AuthUser): OcrRole {
-    const moduleRole = user.modules?.['ocr']?.role as OcrRole | undefined;
-    return moduleRole ?? OcrRole.OPERADOR_CAMPO;
+    const raw = user.modules?.['ocr']?.role;
+    const validRoles: string[] = Object.values(OcrRole);
+    if (raw && validRoles.includes(raw)) return raw as OcrRole;
+    return OcrRole.OPERADOR_CAMPO;
   }
 
   private isAdminOrSuperAdmin(user: AuthUser): boolean {
