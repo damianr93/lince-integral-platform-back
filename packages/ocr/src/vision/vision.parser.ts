@@ -84,8 +84,8 @@ const REMITO_PATTERNS = {
   // Cliente: "Señor/ra NANTEX SA" (misma línea) o "Señor\nNANTEX SA" (línea siguiente)
   // Acepta: Señor, Señores, Señor/ra, Señor/res y variantes OCR
   cliente:               /se[nñ]or(?:[^\n:]{0,6})?[:\s]+([A-ZÁÉÍÓÚÜÑ][^\n]{3,80})/i,
-  // Fallback: campo CUENTA en encabezado del remito
-  clienteCuenta:         /CUENTA[:\s]+([A-ZÁÉÍÓÚÜÑ][^\n]{3,80})/i,
+  // Fallback: campo CUENTA en encabezado — acepta misma línea o línea siguiente
+  clienteCuenta:         /CUENTA[:\s]*\n?([A-ZÁÉÍÓÚÜÑ][^\n]{3,80})/i,
 
   // CUIT del cliente: "CUIT N\n20-05534479-6" (sin punto, sección cliente)
   cuitCliente:           /CUIT\s+N[°o]?\s*\n(\d{2}[-\s]\d{7,8}[-\s]\d)/i,
