@@ -76,13 +76,16 @@ function extract(text: string, pattern: RegExp): string {
 // ── Patterns — Remito ─────────────────────────────────────────────────────────
 
 const REMITO_PATTERNS = {
-  // Número completo del remito: "N° 00014-00012686"
-  nroCompleto:           /N[°o]?\s*(\d{4,5}[-–]\d{6,8})/i,
+  // Número completo del remito: "N° 00014-00012686" o "N° 00008 - 00057783" (espacios alrededor del guión)
+  nroCompleto:           /N[°o]?\s*(\d{4,5}\s*[-–]\s*\d{6,8})/i,
 
   fecha:                 /FECHA[:\s]+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i,
 
-  // Cliente: línea debajo de "Señor" / "Señores" / "Señories"
-  cliente:               /se[nñ]or(?:es|ies)?[:\s]*\n([A-ZÁÉÍÓÚÜÑ][^\n]{3,80})/i,
+  // Cliente: "Señor/ra NANTEX SA" (misma línea) o "Señor\nNANTEX SA" (línea siguiente)
+  // Acepta: Señor, Señores, Señor/ra, Señor/res y variantes OCR
+  cliente:               /se[nñ]or(?:[^\n:]{0,6})?[:\s]+([A-ZÁÉÍÓÚÜÑ][^\n]{3,80})/i,
+  // Fallback: campo CUENTA en encabezado del remito
+  clienteCuenta:         /CUENTA[:\s]+([A-ZÁÉÍÓÚÜÑ][^\n]{3,80})/i,
 
   // CUIT del cliente: "CUIT N\n20-05534479-6" (sin punto, sección cliente)
   cuitCliente:           /CUIT\s+N[°o]?\s*\n(\d{2}[-\s]\d{7,8}[-\s]\d)/i,
@@ -519,10 +522,10 @@ const FACTURA_PATTERNS = {
 export function parseRemitoText(rawText: string): RemitoFields {
   const text = normalizeText(rawText);
 
-  // Número de remito: split en pto de venta y número
+  // Número de remito: split en pto de venta y número (tolera espacios alrededor del guión)
   const nroCompleto = extract(text, REMITO_PATTERNS.nroCompleto);
   const [ptoVenta = '', nroRemito = ''] = nroCompleto
-    ? nroCompleto.split(/[-–]/)
+    ? nroCompleto.split(/\s*[-–]\s*/)
     : ['', ''];
 
   // Firma: si hay contenido (nombre/DNI) después de "FIRMA", está firmado
@@ -533,11 +536,16 @@ export function parseRemitoText(rawText: string): RemitoFields {
   const choferRaw = extract(text, REMITO_PATTERNS.chofer);
   const chofer = choferRaw.replace(/\s*\(\d+\)\s*$/, '').trim();
 
+  // Cliente: primero "Señor/ra", fallback "CUENTA:"
+  const clienteRaw =
+    extract(text, REMITO_PATTERNS.cliente) ||
+    extract(text, REMITO_PATTERNS.clienteCuenta);
+
   return {
     fecha:                  extract(text, REMITO_PATTERNS.fecha),
     ptoVenta:               ptoVenta.trim(),
     nroRemito:              nroRemito.trim(),
-    cliente:                extract(text, REMITO_PATTERNS.cliente),
+    cliente:                clienteRaw,
     cuitCliente:            normalizeCuit(extract(text, REMITO_PATTERNS.cuitCliente)),
     domicilioCliente:       extract(text, REMITO_PATTERNS.domicilioCliente),
     lugarEntrega:           extract(text, REMITO_PATTERNS.lugarEntrega),
