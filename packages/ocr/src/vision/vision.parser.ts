@@ -17,6 +17,9 @@ export interface RemitoFields {
   producto:             string;   // Nombre del producto (ej: "GLUTEN")
   nroMercaderia:        string;   // Nro. de mercadería retirada en planta (ej: "R0014-00012686")
   firmado:              string;   // "si" | "no"
+  firmaEstado:          string;   // "si" | "duda" | "no"
+  aclaracionEstado:     string;   // "si" | "duda" | "no"
+  dniEstado:            string;   // "si" | "duda" | "no"
   chofer:               string;   // Nombre del chofer
   camion:               string;   // Patente camión
   batea:                string;   // Patente batea
@@ -76,8 +79,9 @@ function extract(text: string, pattern: RegExp): string {
 // ── Patterns — Remito ─────────────────────────────────────────────────────────
 
 const REMITO_PATTERNS = {
-  // Número completo del remito: "N° 00014-00012686" o "N° 00008 - 00057783" (espacios alrededor del guión)
-  nroCompleto:           /N[°o]?\s*(\d{4,5}\s*[-–]\s*\d{6,8})/i,
+  // Número completo del remito: "N° 00014-00012686" o "N° 00008 - 00057783".
+  // Acepta variantes OCR habituales: Nº, Nro, Numero, espacios y guiones largos.
+  nroCompleto:           /(?:\bN\s*[°ºo0]?|\bNRO\.?|\bN[ÚU]M(?:ERO)?\.?)\s*[:.]?\s*([0-9OISl]{4,5}\s*[-–—]\s*[0-9OISl]{5,8})/i,
 
   fecha:                 /FECHA[:\s]+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i,
 
@@ -118,6 +122,102 @@ const REMITO_PATTERNS = {
   // Domicilio del transportista: "Domicilio:\n<valor>" (con dos puntos = transportista)
   domicilioTransportista: /Domicilio:\s*\n([^\n]{2,80})/i,
 };
+
+function normalizeRemitoNumber(raw: string): string {
+  const clean = raw
+    .replace(/[Oo]/g, '0')
+    .replace(/[Il]/g, '1')
+    .replace(/[Ss]/g, '5')
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, '')
+    .trim();
+  const m = /^(\d{4,5})-(\d{5,8})$/.exec(clean);
+  return m ? `${m[1]}-${m[2]}` : '';
+}
+
+function extractRemitoNumber(text: string): string {
+  const fromHeader = normalizeRemitoNumber(extract(text, REMITO_PATTERNS.nroCompleto));
+  if (fromHeader) return fromHeader;
+
+  const fromRemitoWindow = /REMITO[^\n]{0,100}?([0-9OISl]{4,5}\s*[-–—]\s*[0-9OISl]{5,8})/i.exec(text);
+  if (fromRemitoWindow) {
+    const normalized = normalizeRemitoNumber(fromRemitoWindow[1] ?? '');
+    if (normalized) return normalized;
+  }
+
+  const fromMercaderia = /\bR\s*([0-9OISl]{4,5}\s*[-–—]\s*[0-9OISl]{5,8})/i.exec(text);
+  if (fromMercaderia) {
+    const normalized = normalizeRemitoNumber(fromMercaderia[1] ?? '');
+    if (normalized) return normalized;
+  }
+
+  return '';
+}
+
+type RemitoPresenceState = 'si' | 'duda' | 'no';
+
+interface RemitoPresenceFields {
+  firmaEstado: RemitoPresenceState;
+  aclaracionEstado: RemitoPresenceState;
+  dniEstado: RemitoPresenceState;
+}
+
+function fieldPresence(hasLabel: boolean, hasContent: boolean): RemitoPresenceState {
+  if (hasContent) return 'si';
+  if (hasLabel) return 'duda';
+  return 'no';
+}
+
+function extractSectionAfterLabel(text: string, label: RegExp, until: RegExp): string {
+  const match = label.exec(text);
+  if (!match || match.index == null) return '';
+
+  const from = match.index + match[0].length;
+  const rest = text.slice(from);
+  const endMatch = until.exec(rest);
+  const to = endMatch?.index ?? rest.length;
+  return rest.slice(0, to).trim();
+}
+
+function hasMeaningfulHandwrittenText(section: string): boolean {
+  const clean = section
+    .replace(/[_\-–—.:|/\\]+/g, ' ')
+    .replace(/\b(firma|aclaraci[oó]n|d\.?\s*n\.?\s*i\.?|dni)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return /[A-ZÁÉÍÓÚÜÑ]{2,}/i.test(clean) || /\d{3,}/.test(clean);
+}
+
+function detectRemitoPresenceFromText(text: string): RemitoPresenceFields {
+  const firmaLabel = /\bFIRMA\b/i.test(text);
+  const aclaracionLabel = /\bACLARACI[OÓ]N\b/i.test(text);
+  const dniLabel = /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b/i.test(text);
+
+  const firmaSection = extractSectionAfterLabel(
+    text,
+    /\bFIRMA\b/i,
+    /\bACLARACI[OÓ]N\b|\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|Una vez|IMPRENTA|Tirada/i,
+  );
+  const aclaracionSection = extractSectionAfterLabel(
+    text,
+    /\bACLARACI[OÓ]N\b/i,
+    /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|Una vez|IMPRENTA|Tirada/i,
+  );
+  const dniSection = extractSectionAfterLabel(
+    text,
+    /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b/i,
+    /Una vez|IMPRENTA|Tirada|Fecha/i,
+  );
+
+  const dniNumber = /\b\d{1,2}[\s.]?\d{3}[\s.]?\d{3}\b/.test(text);
+
+  return {
+    firmaEstado: fieldPresence(firmaLabel, hasMeaningfulHandwrittenText(firmaSection)),
+    aclaracionEstado: fieldPresence(aclaracionLabel, hasMeaningfulHandwrittenText(aclaracionSection)),
+    dniEstado: fieldPresence(dniLabel, dniNumber || hasMeaningfulHandwrittenText(dniSection)),
+  };
+}
 
 // ── Retención: pipeline candidatos + scoring ───────────────────────────────────
 
@@ -523,14 +623,15 @@ export function parseRemitoText(rawText: string): RemitoFields {
   const text = normalizeText(rawText);
 
   // Número de remito: split en pto de venta y número (tolera espacios alrededor del guión)
-  const nroCompleto = extract(text, REMITO_PATTERNS.nroCompleto);
+  const nroCompleto = extractRemitoNumber(text);
   const [ptoVenta = '', nroRemito = ''] = nroCompleto
-    ? nroCompleto.split(/\s*[-–]\s*/)
+    ? nroCompleto.split('-')
     : ['', ''];
 
   // Firma: si hay contenido (nombre/DNI) después de "FIRMA", está firmado
   const firmaContenido = extract(text, REMITO_PATTERNS.firma);
   const firmado = firmaContenido.trim().length > 2 ? 'si' : 'no';
+  const presence = detectRemitoPresenceFromText(text);
 
   // Chofer: limpiar el código entre paréntesis "(184)"
   const choferRaw = extract(text, REMITO_PATTERNS.chofer);
@@ -553,6 +654,9 @@ export function parseRemitoText(rawText: string): RemitoFields {
     producto:               extract(text, REMITO_PATTERNS.producto),
     nroMercaderia:          extract(text, REMITO_PATTERNS.nroMercaderia),
     firmado,
+    firmaEstado:            presence.firmaEstado,
+    aclaracionEstado:       presence.aclaracionEstado,
+    dniEstado:              presence.dniEstado,
     chofer,
     camion:                 extract(text, REMITO_PATTERNS.camion),
     batea:                  extract(text, REMITO_PATTERNS.batea),

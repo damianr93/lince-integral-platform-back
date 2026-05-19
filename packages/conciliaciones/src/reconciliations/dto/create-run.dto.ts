@@ -38,6 +38,10 @@ export class CreateRunDto {
   accountRef?: string;
 
   @IsOptional()
+  @IsString()
+  company?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   windowDays?: number;

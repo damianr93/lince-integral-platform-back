@@ -25,6 +25,9 @@ export class ReconciliationRunEntity {
   @Column({ type: 'varchar', nullable: true })
   accountRef: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  company: string | null;
+
   @Column({ default: 0 })
   windowDays: number;
 

@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Request,
   Res,
   UploadedFile,
@@ -46,8 +47,8 @@ export class ReconciliationsController {
   }
 
   @Get()
-  list() {
-    return this.service.listRuns();
+  list(@Query('company') company?: string) {
+    return this.service.listRuns(company);
   }
 
   @Post(':id/issues')
@@ -147,7 +148,7 @@ export class ReconciliationsController {
   @Patch(':id')
   async updateRun(
     @Param('id') id: string,
-    @Body() body: { status?: RunStatus; bankName?: string; enabledCategoryIds?: string[] },
+    @Body() body: { status?: RunStatus; bankName?: string | null; company?: string | null; enabledCategoryIds?: string[] },
     @Request() req: { user: { id: string } },
   ) {
     await this.service.assertCanEdit(id, req.user.id);

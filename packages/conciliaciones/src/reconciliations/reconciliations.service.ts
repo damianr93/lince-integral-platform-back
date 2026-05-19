@@ -180,6 +180,7 @@ export class ReconciliationsService {
         title: dto.title ?? null,
         bankName: dto.bankName ?? null,
         accountRef: dto.accountRef ?? null,
+        company: dto.company ?? null,
         windowDays,
         cutDate: cutDate ?? undefined,
         excludeConcepts: (dto.extract.excludeConcepts ?? []) as string[],
@@ -454,7 +455,7 @@ export class ReconciliationsService {
   async updateRun(
     runId: string,
     userId: string,
-    data: { status?: RunStatus; bankName?: string | null; enabledCategoryIds?: string[] },
+    data: { status?: RunStatus; bankName?: string | null; enabledCategoryIds?: string[]; company?: string | null },
   ) {
     await this.assertCanEdit(runId, userId);
     const run = await this.runRepo.findOne({
@@ -472,6 +473,7 @@ export class ReconciliationsService {
     const updateData: Partial<ReconciliationRunEntity> = {};
     if (data.status != null) updateData.status = data.status;
     if (data.bankName !== undefined) updateData.bankName = data.bankName ?? null;
+    if (data.company !== undefined) updateData.company = data.company ?? null;
     if (data.enabledCategoryIds !== undefined)
       updateData.enabledCategoryIds = data.enabledCategoryIds;
     await this.runRepo.update({ id: runId }, updateData as any);
@@ -904,8 +906,11 @@ export class ReconciliationsService {
     });
   }
 
-  listRuns() {
-    return this.runRepo.find({ order: { createdAt: 'DESC' } });
+  listRuns(company?: string) {
+    return this.runRepo.find({
+      where: company ? { company } : undefined,
+      order: { createdAt: 'DESC' },
+    });
   }
 
   private async assertRunExists(runId: string) {
@@ -1065,6 +1070,32 @@ export class ReconciliationsService {
         dueDate: sys.dueDate,
         amount: sys.amount,
       });
+    }
+
+    // Hoja Excluidos: líneas del extracto excluidas, agrupadas por concepto
+    const excludedLines = await this.extractLineRepo.find({
+      where: { runId, excluded: true },
+      relations: { category: true },
+      select: { id: true, concept: true, amount: true, category: { id: true, name: true } },
+    });
+    const excludedSheet = workbook.addWorksheet('Excluidos');
+    excludedSheet.columns = [
+      { header: 'Concepto', key: 'concept', width: 40 },
+      { header: 'Categoria', key: 'category', width: 28 },
+      { header: 'Cantidad', key: 'count', width: 12 },
+      { header: 'Importe Total', key: 'total', width: 18 },
+    ];
+    const excludedByKey = new Map<string, { concept: string; category: string; count: number; total: number }>();
+    for (const line of excludedLines) {
+      const concept = (line.concept ?? '').trim() || '(sin concepto)';
+      const category = line.category?.name ?? '';
+      const key = concept.toLowerCase();
+      const cur = excludedByKey.get(key);
+      if (!cur) excludedByKey.set(key, { concept, category, count: 1, total: line.amount });
+      else excludedByKey.set(key, { ...cur, count: cur.count + 1, total: cur.total + line.amount });
+    }
+    for (const row of excludedByKey.values()) {
+      excludedSheet.addRow({ concept: row.concept, category: row.category, count: row.count, total: row.total });
     }
 
     const buffer = await workbook.xlsx.writeBuffer();

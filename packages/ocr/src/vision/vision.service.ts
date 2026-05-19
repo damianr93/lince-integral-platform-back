@@ -193,12 +193,13 @@ export class VisionService {
 
   private extractRemitoFieldsFromDocumentAi(doc: ProcessedDocument): ExtractedFields {
     const formMap = this.buildFormValueMap(doc);
+    const rawText = normalizeText(doc.text ?? '');
 
     const form = (aliases: string[]) => this.pickFirst(formMap, aliases);
 
     // Número de remito: Document AI lo detecta como campo "n_00014-00012686" o similar.
     // Buscamos cualquier clave que contenga el patrón XXXXX-XXXXXXXX.
-    const nroRaw = this.findRemitoNumber(formMap);
+    const nroRaw = this.findRemitoNumber(formMap, rawText);
     const [ptoVenta = '', nroRemito = ''] = nroRaw ? nroRaw.split(/[-–]/) : [];
 
     // Lugar de entrega: OCR puede leer "LUGAR" como "JGAR" — buscamos ambas variantes.
@@ -212,6 +213,7 @@ export class VisionService {
     // Buscamos cualquier campo cuyo valor empiece con "FIRMA".
     const firmaVal = this.findFieldStartingWith(formMap, 'FIRMA');
     const firmado  = firmaVal && firmaVal.trim().length > 6 ? 'si' : '';
+    const presence = detectRemitoPresence(rawText, formMap);
 
     // CUIT cliente: campo "CUIT N" → clave normalizada "cuit_n"
     const cuitCliente = normalizeCuit(form(['cuit_n', 'cuit_cliente']));
@@ -247,6 +249,9 @@ export class VisionService {
       lugarEntrega,
       nroMercaderia,
       firmado,
+      firmaEstado:            presence.firmaEstado,
+      aclaracionEstado:       presence.aclaracionEstado,
+      dniEstado:              presence.dniEstado,
       chofer:                 (form(['chofer']) || '').replace(/\s*\(\d+\)\s*$/, '').trim(),
       camion,
       batea:                  form(['batea']),
@@ -293,19 +298,23 @@ export class VisionService {
    * Document AI genera la clave normalizando el texto del campo nombre,
    * así "N° 00014-00012686" queda como "n_00014-00012686".
    */
-  private findRemitoNumber(formMap: Map<string, string>): string {
-    const pattern = /\d{4,5}[-–]\d{6,8}/;
+  private findRemitoNumber(formMap: Map<string, string>, rawText = ''): string {
+    const fromRawText = extractRemitoNumberFromText(rawText);
+    if (fromRawText) return fromRawText;
 
-    for (const key of formMap.keys()) {
-      const m = pattern.exec(key);
-      if (m) return m[0];
+    for (const [key, value] of formMap.entries()) {
+      const fromKey = extractRemitoNumberFromText(key);
+      if (fromKey) return fromKey;
+
+      const fromValue = extractRemitoNumberFromText(value);
+      if (fromValue) return fromValue;
     }
 
     // También puede aparecer como valor del campo "remito" o "n"
     for (const [key, value] of formMap.entries()) {
-      if (/^(remito|n[°o]?)$/.test(key)) {
-        const m = pattern.exec(value);
-        if (m) return m[0];
+      if (/^(remito|n[°ºo0]?|nro)$/.test(key)) {
+        const normalized = normalizeRemitoNumberCandidate(value);
+        if (normalized) return normalized;
       }
     }
 
@@ -768,4 +777,81 @@ function normalizeTipoFactura(raw: string): string {
   const upper = raw.toUpperCase().trim();
   if (/^[ABCME]$/.test(upper)) return upper;
   return '';
+}
+
+function normalizeRemitoNumberCandidate(raw: string): string {
+  const clean = raw
+    .replace(/[Oo]/g, '0')
+    .replace(/[Il]/g, '1')
+    .replace(/[Ss]/g, '5')
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, '')
+    .trim();
+  const m = /(\d{4,5})-(\d{5,8})/.exec(clean);
+  return m ? `${m[1]}-${m[2]}` : '';
+}
+
+function extractRemitoNumberFromText(text: string): string {
+  const patterns = [
+    /(?:\bN\s*[°ºo0]?|\bNRO\.?|\bN[ÚU]M(?:ERO)?\.?)\s*[:.]?\s*([0-9OISl]{4,5}\s*[-–—]\s*[0-9OISl]{5,8})/i,
+    /REMITO[^\n]{0,100}?([0-9OISl]{4,5}\s*[-–—]\s*[0-9OISl]{5,8})/i,
+    /\bR\s*([0-9OISl]{4,5}\s*[-–—]\s*[0-9OISl]{5,8})/i,
+  ];
+
+  for (const pattern of patterns) {
+    const m = pattern.exec(text);
+    const normalized = normalizeRemitoNumberCandidate(m?.[1] ?? '');
+    if (normalized) return normalized;
+  }
+
+  return '';
+}
+
+type RemitoPresenceState = 'si' | 'duda' | 'no';
+
+function detectRemitoPresence(
+  rawText: string,
+  formMap: Map<string, string>,
+): Record<'firmaEstado' | 'aclaracionEstado' | 'dniEstado', RemitoPresenceState> {
+  const formText = Array.from(formMap.entries())
+    .map(([key, value]) => `${key} ${value}`)
+    .join('\n');
+  const text = normalizeText(`${rawText}\n${formText}`);
+
+  const firmaLabel = /\bFIRMA\b/i.test(text);
+  const aclaracionLabel = /\bACLARACI[OÓ]N\b|\baclaraci_n\b/i.test(text);
+  const dniLabel = /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|\bd_n_i\b/i.test(text);
+
+  const firmaContent = hasLabeledContent(text, /\bFIRMA\b/i, /\bACLARACI[OÓ]N\b|\baclaraci_n\b|\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|\bd_n_i\b|Una vez|IMPRENTA|Tirada/i);
+  const aclaracionContent = hasLabeledContent(text, /\bACLARACI[OÓ]N\b|\baclaraci_n\b/i, /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|\bd_n_i\b|Una vez|IMPRENTA|Tirada/i);
+  const dniContent = /\b\d{1,2}[\s.]?\d{3}[\s.]?\d{3}\b/.test(text) ||
+    hasLabeledContent(text, /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|\bd_n_i\b/i, /Una vez|IMPRENTA|Tirada|Fecha/i);
+
+  return {
+    firmaEstado: toPresence(firmaLabel, firmaContent),
+    aclaracionEstado: toPresence(aclaracionLabel, aclaracionContent),
+    dniEstado: toPresence(dniLabel, dniContent),
+  };
+}
+
+function toPresence(hasLabel: boolean, hasContent: boolean): RemitoPresenceState {
+  if (hasContent) return 'si';
+  if (hasLabel) return 'duda';
+  return 'no';
+}
+
+function hasLabeledContent(text: string, label: RegExp, until: RegExp): boolean {
+  const match = label.exec(text);
+  if (!match || match.index == null) return false;
+
+  const rest = text.slice(match.index + match[0].length);
+  const endMatch = until.exec(rest);
+  const section = rest.slice(0, endMatch?.index ?? rest.length);
+  const clean = section
+    .replace(/[_\-–—.:|/\\]+/g, ' ')
+    .replace(/\b(firma|aclaraci[oó]n|aclaraci_n|d\.?\s*n\.?\s*i\.?|dni|d_n_i)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return /[A-ZÁÉÍÓÚÜÑ]{2,}/i.test(clean) || /\d{3,}/.test(clean);
 }

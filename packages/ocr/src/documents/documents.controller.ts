@@ -34,8 +34,10 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard, ModuleGuard, RolesGuard, CurrentUser, RequireModule, Roles } from '@lince/auth';
 import { ModuleKey, GlobalRole, AuthUser } from '@lince/types';
 import { DocumentsService } from './documents.service';
@@ -151,6 +153,18 @@ export class DocumentsController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.documents.getViewUrl(id, user);
+  }
+
+  @Get(':id/file')
+  async downloadFile(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+    @Res() res: Response,
+  ) {
+    const { buffer, contentType, filename } = await this.documents.downloadFile(id, user);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
   }
 
   /**

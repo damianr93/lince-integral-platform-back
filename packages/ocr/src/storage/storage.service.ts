@@ -15,16 +15,18 @@
  *
  * Política IAM mínima requerida:
  *  s3:PutObject, s3:GetObject, s3:DeleteObject en arn:aws:s3:::BUCKET/*
+ *  s3:CopyObject se cubre con GetObject + PutObject en el mismo bucket.
  *
  * Estructura de claves en S3:
- *  ocr/{tipo}/{año}/{uuid}.{ext}          ← original
- *  ocr/{tipo}/{año}/thumbs/{uuid}.jpg     ← thumbnail (generación futura)
+ *  ocr/{tipo}/{año}/{uuid}-{nroRemito}-{fecha}.{ext} ← original
+ *  ocr/{tipo}/{año}/thumbs/{uuid}.jpg                 ← thumbnail (generación futura)
  */
 
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ServiceUnavailableException } from '@nestjs/common';
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
@@ -188,9 +190,28 @@ export class StorageService {
   }
 
   /**
+   * Renombra un objeto dentro del mismo bucket.
+   * S3 no soporta rename nativo: se copia al nuevo key y luego se borra el anterior.
+   */
+  async moveObject(sourceKey: string, targetKey: string): Promise<void> {
+    if (!this.isConfigured) return;
+    if (sourceKey === targetKey) return;
+
+    const copySource = `${this.bucket}/${encodeURIComponent(sourceKey).replace(/%2F/g, '/')}`;
+    await this.client!.send(new CopyObjectCommand({
+      Bucket: this.bucket,
+      Key: targetKey,
+      CopySource: copySource,
+    }));
+
+    await this.deleteObject(sourceKey);
+    this.logger.debug(`Objeto S3 renombrado: ${sourceKey} → ${targetKey}`);
+  }
+
+  /**
    * Construye la clave S3 canónica para un documento.
    *
-   * Formato: ocr/{tipo}/{año}/{uuid}.{ext}
+   * Formato: ocr/{tipo}/{año}/{uuid}-{nroRemito}-{fecha}.{ext}
    *
    * @param type       'remitos' | 'facturas'
    * @param documentId UUID del documento (ya generado antes del upload)
@@ -208,10 +229,35 @@ export class StorageService {
     type: 'remitos' | 'facturas' | 'retenciones',
     documentId: string,
     mimeType: AllowedMimeType,
+    remitoNumber = 'noDetected',
+    remitoDate = 'noDetected',
   ): string {
     const year = new Date().getFullYear();
     const ext  = MIME_TO_EXT[mimeType] ?? 'bin';
-    return `ocr/${type}/${year}/${documentId}.${ext}`;
+    return `ocr/${type}/${year}/${this.buildDocumentFileName(documentId, remitoNumber, remitoDate, ext)}`;
+  }
+
+  buildDocumentS3KeyFromExisting(
+    currentKey: string,
+    documentId: string,
+    remitoNumber = 'noDetected',
+    remitoDate = 'noDetected',
+  ): string {
+    const lastSlash = currentKey.lastIndexOf('/');
+    const prefix = lastSlash === -1 ? '' : currentKey.slice(0, lastSlash + 1);
+    const fileName = lastSlash === -1 ? currentKey : currentKey.slice(lastSlash + 1);
+    const dot = fileName.lastIndexOf('.');
+    const ext = dot === -1 ? 'bin' : fileName.slice(dot + 1);
+    return `${prefix}${this.buildDocumentFileName(documentId, remitoNumber, remitoDate, ext)}`;
+  }
+
+  private buildDocumentFileName(
+    documentId: string,
+    remitoNumber: string,
+    remitoDate: string,
+    ext: string,
+  ): string {
+    return `${sanitizeS3NamePart(documentId)}-${sanitizeS3NamePart(remitoNumber)}-${sanitizeS3NamePart(remitoDate)}.${sanitizeS3NamePart(ext)}`;
   }
 }
 
@@ -221,3 +267,13 @@ const MIME_TO_EXT: Record<AllowedMimeType, string> = {
   'image/webp':     'webp',
   'application/pdf': 'pdf',
 };
+
+function sanitizeS3NamePart(value: string): string {
+  const clean = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return clean || 'noDetected';
+}

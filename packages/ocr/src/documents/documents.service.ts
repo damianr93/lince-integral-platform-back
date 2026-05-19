@@ -209,6 +209,23 @@ export class DocumentsService {
     return { viewUrl: viewUrl || null };
   }
 
+  async downloadFile(
+    id: string,
+    user: AuthUser,
+  ): Promise<{ buffer: Buffer; contentType: string; filename: string }> {
+    const doc = await this.docRepo.findOne({ where: { id } });
+    if (!doc) throw new NotFoundException(`Documento ${id} no encontrado`);
+    this.assertCanView(doc, user);
+
+    const buffer = await this.storage.downloadToBuffer(doc.s3Key);
+    const ext = doc.s3Key.split('.').pop()?.toLowerCase() ?? 'jpg';
+    const number = buildRemitoNumberForFileName(doc.extractedData)
+      .replace(/[^a-zA-Z0-9._-]+/g, '_');
+    const filename = `remito-${number}.${ext}`;
+
+    return { buffer, contentType: inferMimeType(doc.s3Key), filename };
+  }
+
   // ── 4. Corrección de campos ───────────────────────────────────────────────
 
   /**
@@ -239,6 +256,7 @@ export class DocumentsService {
       ? DocumentStatus.CON_ERRORES
       : DocumentStatus.REVISADO;
 
+    await this.syncS3KeyFromRemitoFields(doc);
     await this.docRepo.save(doc);
 
     this.logger.log(`Campos corregidos — doc ${id} por ${ocrRole} (user: ${user.id})`);
@@ -349,6 +367,7 @@ export class DocumentsService {
         ? DocumentStatus.CON_ERRORES
         : DocumentStatus.VALIDO;
 
+      await this.syncS3KeyFromRemitoFields(doc);
       await this.docRepo.save(doc);
 
       this.logger.log(
@@ -402,6 +421,32 @@ export class DocumentsService {
     });
 
     return { items, total, page, limit, pages: Math.ceil(total / limit) };
+  }
+
+  private async syncS3KeyFromRemitoFields(doc: DocumentEntity): Promise<void> {
+    if (doc.type !== DocumentType.REMITO) return;
+    if (!this.storage.isConfigured) return;
+
+    const remitoNumber = buildRemitoNumberForFileName(doc.extractedData);
+    const remitoDate = doc.extractedData?.['fecha']?.trim() || 'noDetected';
+    const targetKey = this.storage.buildDocumentS3KeyFromExisting(
+      doc.s3Key,
+      doc.id,
+      remitoNumber,
+      remitoDate,
+    );
+
+    if (targetKey === doc.s3Key) return;
+
+    try {
+      await this.storage.moveObject(doc.s3Key, targetKey);
+      this.logger.log(`S3 key actualizada — doc ${doc.id}: ${targetKey}`);
+      doc.s3Key = targetKey;
+    } catch (err) {
+      this.logger.warn(
+        `No se pudo actualizar S3 key del doc ${doc.id}: ${(err as Error).message}`,
+      );
+    }
   }
 
   /** Busca un documento que pertenezca al usuario autenticado o falla */
@@ -494,4 +539,13 @@ function inferMimeType(s3Key: string): string {
     pdf:  'application/pdf',
   };
   return map[ext ?? ''] ?? 'image/jpeg';
+}
+
+function buildRemitoNumberForFileName(fields: Record<string, string> | null): string {
+  const ptoVenta = fields?.['ptoVenta']?.trim();
+  const nroRemito = fields?.['nroRemito']?.trim();
+  const numero = fields?.['numero']?.trim();
+
+  if (ptoVenta && nroRemito) return `${ptoVenta}-${nroRemito}`;
+  return nroRemito || numero || 'noDetected';
 }

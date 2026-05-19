@@ -355,6 +355,27 @@ describe('parseRetencionText', () => {
       expect(fields).toHaveProperty('rawText');
     });
 
+    it('parseRemitoText detecta número con N° y espacios alrededor del guion', () => {
+      const fields = parseRemitoText(`
+        REMITO Documento No válido como Factura DUPLICADO
+        N° 00008 - 00057783
+        FECHA: 17/04/2026
+      `);
+
+      expect(fields.ptoVenta).toBe('00008');
+      expect(fields.nroRemito).toBe('00057783');
+    });
+
+    it('parseRemitoText usa el código R de mercadería como fallback del remito', () => {
+      const fields = parseRemitoText(`
+        MERCADERÍA RETIRADA DE PLANTA
+        R0008-00057783
+      `);
+
+      expect(fields.ptoVenta).toBe('0008');
+      expect(fields.nroRemito).toBe('00057783');
+    });
+
     it('parseFacturaText sigue devolviendo el objeto esperado', () => {
       const fields = parseFacturaText('');
       expect(fields).toHaveProperty('numero');
