@@ -17,7 +17,6 @@ export class AddObservacionesToOcrDocuments1779213201064 implements MigrationInt
         await queryRunner.query(`ALTER TYPE "public"."ocr_document_type_enum" RENAME TO "ocr_document_type_enum_old"`);
         await queryRunner.query(`CREATE TYPE "public"."ocr_documents_type_enum" AS ENUM('REMITO', 'FACTURA', 'RETENCION')`);
         await queryRunner.query(`ALTER TABLE "ocr_documents" ALTER COLUMN "type" TYPE "public"."ocr_documents_type_enum" USING "type"::"text"::"public"."ocr_documents_type_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."ocr_document_type_enum_old"`);
         await queryRunner.query(`ALTER TYPE "public"."ocr_document_status_enum" RENAME TO "ocr_document_status_enum_old"`);
         await queryRunner.query(`CREATE TYPE "public"."ocr_documents_status_enum" AS ENUM('PENDIENTE', 'PROCESANDO', 'VALIDO', 'CON_ERRORES', 'REVISION_PENDIENTE', 'REVISADO', 'APROBADO', 'RECHAZADO')`);
         await queryRunner.query(`ALTER TABLE "ocr_documents" ALTER COLUMN "status" DROP DEFAULT`);
@@ -28,7 +27,6 @@ export class AddObservacionesToOcrDocuments1779213201064 implements MigrationInt
         await queryRunner.query(`CREATE TYPE "public"."ocr_documents_uploaded_by_role_enum" AS ENUM('OPERADOR_CAMPO', 'ADMINISTRATIVO', 'ADMIN')`);
         await queryRunner.query(`ALTER TABLE "ocr_documents" ALTER COLUMN "uploaded_by_role" TYPE "public"."ocr_documents_uploaded_by_role_enum" USING "uploaded_by_role"::"text"::"public"."ocr_documents_uploaded_by_role_enum"`);
         await queryRunner.query(`DROP TYPE "public"."ocr_role_enum_old"`);
-        await queryRunner.query(`ALTER TYPE "public"."ocr_document_type_enum" RENAME TO "ocr_document_type_enum_old"`);
         await queryRunner.query(`CREATE TYPE "public"."ocr_config_type_enum" AS ENUM('REMITO', 'FACTURA', 'RETENCION')`);
         await queryRunner.query(`ALTER TABLE "ocr_config" ALTER COLUMN "type" TYPE "public"."ocr_config_type_enum" USING "type"::"text"::"public"."ocr_config_type_enum"`);
         await queryRunner.query(`DROP TYPE "public"."ocr_document_type_enum_old"`);
