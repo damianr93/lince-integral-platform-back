@@ -197,9 +197,20 @@ export class VisionService {
 
     const form = (aliases: string[]) => this.pickFirst(formMap, aliases);
 
-    // Número de remito: Document AI lo detecta como campo "n_00014-00012686" o similar.
-    // Buscamos cualquier clave que contenga el patrón XXXXX-XXXXXXXX.
-    const nroRaw = this.findRemitoNumber(formMap, rawText);
+    // Nro. mercadería retirada en planta: extraer primero — es la fuente canónica
+    const mercaderiaRawEarly = form([
+      'merced_a_retirada_de_planta',
+      'mercader_a_retirada_de_planta',
+      'mercanc_a_retirada_de_planta',
+      'mercaderia_retirada_de_planta',
+    ]);
+    const nroMercaderiaEarly = (/R\d{4}-\d{5,8}/.exec(mercaderiaRawEarly) ?? [])[0] ?? '';
+    const mercaderiaEarlyMatch = /R(\d{4})-(\d{5,8})/.exec(nroMercaderiaEarly);
+
+    // Número de remito: preferir el del box de mercadería (más fiable que el del encabezado)
+    const nroRaw = mercaderiaEarlyMatch
+      ? `${mercaderiaEarlyMatch[1]}-${mercaderiaEarlyMatch[2]}`
+      : this.findRemitoNumber(formMap, rawText);
     const [ptoVenta = '', nroRemito = ''] = nroRaw ? nroRaw.split(/[-–]/) : [];
 
     // Lugar de entrega: OCR puede leer "LUGAR" como "JGAR" — buscamos ambas variantes.
@@ -230,19 +241,17 @@ export class VisionService {
     // Camión: campo "Camión:" → clave "cami_n" (ó normalizada a _)
     const camion = form(['cami_n', 'camion', 'cam_n']);
 
-    // Nro. mercadería retirada en planta: campo largo → extraemos el código "R..."
-    const mercaderiaRaw = form([
-      'merced_a_retirada_de_planta',
-      'mercader_a_retirada_de_planta',
-      'mercanc_a_retirada_de_planta',
-      'mercaderia_retirada_de_planta',
-    ]);
-    const nroMercaderia = (/R\d{4}-\d{5,8}/.exec(mercaderiaRaw) ?? [])[0] ?? '';
+    // nroMercaderia ya fue extraído arriba (nroMercaderiaEarly) como fuente canónica del número
+    const nroMercaderia = nroMercaderiaEarly;
 
     // Nota: "cliente" y "domicilioCliente" se omiten intencionalmente — el fallback
     // de regex los extrae correctamente (Document AI invierte key/value en esa sección).
+    const fechaRaw = form(['fecha']);
+    // Descartar si Document AI devuelve "impresión: 23/10/2025" del pie de imprenta en lugar de la fecha real
+    const fecha = /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(fechaRaw.trim()) ? fechaRaw.trim() : '';
+
     const fields: ExtractedFields = {
-      fecha:                  form(['fecha']),
+      fecha,
       ptoVenta:               ptoVenta.trim(),
       nroRemito:              nroRemito.trim(),
       cuitCliente,
@@ -824,8 +833,7 @@ function detectRemitoPresence(
 
   const firmaContent = hasLabeledContent(text, /\bFIRMA\b/i, /\bACLARACI[OÓ]N\b|\baclaraci_n\b|\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|\bd_n_i\b|Una vez|IMPRENTA|Tirada/i);
   const aclaracionContent = hasLabeledContent(text, /\bACLARACI[OÓ]N\b|\baclaraci_n\b/i, /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|\bd_n_i\b|Una vez|IMPRENTA|Tirada/i);
-  const dniContent = /\b\d{1,2}[\s.]?\d{3}[\s.]?\d{3}\b/.test(text) ||
-    hasLabeledContent(text, /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|\bd_n_i\b/i, /Una vez|IMPRENTA|Tirada|Fecha/i);
+  const dniContent = hasActualDniContent(text);
 
   return {
     firmaEstado: toPresence(firmaLabel, firmaContent),
@@ -838,6 +846,27 @@ function toPresence(hasLabel: boolean, hasContent: boolean): RemitoPresenceState
   if (hasContent) return 'si';
   if (hasLabel) return 'duda';
   return 'no';
+}
+
+/**
+ * Detecta si hay un DNI argentino real escrito después de la etiqueta "D.N.I." en el texto.
+ * Busca solo en la sección entre la etiqueta y el siguiente ancla (Una vez / IMPRENTA).
+ * Descarta explícitamente números en formato CUIT para evitar falsos positivos.
+ */
+function hasActualDniContent(text: string): boolean {
+  const labelMatch = /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|\bd_n_i\b/i.exec(text);
+  if (!labelMatch) return false;
+
+  const after = text.slice(labelMatch.index + labelMatch[0].length);
+  const endMatch = /Una vez|IMPRENTA|Tirada/i.exec(after);
+  const section = after.slice(0, endMatch?.index ?? Math.min(after.length, 200));
+
+  // Quitar números en formato CUIT (NN-NNNNNNNN-N) para no confundirlos con DNI
+  const withoutCuit = section.replace(/\d{2}[\s.\-]\d{7,8}[\s.\-]\d/g, '');
+
+  // DNI argentino: 7-8 dígitos totales separados en grupos (ej: 32.343.227 o 32 343 227)
+  return /\b\d{1,2}[.\s]\d{3}[.\s]\d{3}\b/.test(withoutCuit) ||
+         /\b\d{7,8}\b/.test(withoutCuit.replace(/[.\s]/g, ''));
 }
 
 function hasLabeledContent(text: string, label: RegExp, until: RegExp): boolean {

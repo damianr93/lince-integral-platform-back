@@ -210,7 +210,11 @@ function detectRemitoPresenceFromText(text: string): RemitoPresenceFields {
     /Una vez|IMPRENTA|Tirada|Fecha/i,
   );
 
-  const dniNumber = /\b\d{1,2}[\s.]?\d{3}[\s.]?\d{3}\b/.test(text);
+  // Buscar DNI solo en la sección post-etiqueta y descartar CUITs (mismo criterio que hasActualDniContent)
+  const withoutCuit = dniSection.replace(/\d{2}[\s.\-]\d{7,8}[\s.\-]\d/g, '');
+  const dniNumber =
+    /\b\d{1,2}[.\s]\d{3}[.\s]\d{3}\b/.test(withoutCuit) ||
+    /\b\d{7,8}\b/.test(withoutCuit.replace(/[.\s]/g, ''));
 
   return {
     firmaEstado: fieldPresence(firmaLabel, hasMeaningfulHandwrittenText(firmaSection)),
@@ -622,8 +626,14 @@ const FACTURA_PATTERNS = {
 export function parseRemitoText(rawText: string): RemitoFields {
   const text = normalizeText(rawText);
 
-  // Número de remito: split en pto de venta y número (tolera espacios alrededor del guión)
-  const nroCompleto = extractRemitoNumber(text);
+  // nroMercaderia: extraer primero — es la fuente canónica cuando existe
+  const nroMercaderia = extract(text, REMITO_PATTERNS.nroMercaderia);
+  const mercaderiaMatch = /R(\d{4})-(\d{5,8})/.exec(nroMercaderia);
+
+  // Número de remito: preferir el del box de mercadería (más fiable que el del encabezado)
+  const nroCompleto = mercaderiaMatch
+    ? `${mercaderiaMatch[1]}-${mercaderiaMatch[2]}`
+    : extractRemitoNumber(text);
   const [ptoVenta = '', nroRemito = ''] = nroCompleto
     ? nroCompleto.split('-')
     : ['', ''];
@@ -638,21 +648,23 @@ export function parseRemitoText(rawText: string): RemitoFields {
   const chofer = choferRaw.replace(/\s*\(\d+\)\s*$/, '').trim();
 
   // Cliente: primero "Señor/ra", fallback "CUENTA:"
+  // Si el valor extraído es una etiqueta del formulario (no un nombre real), se descarta.
   const clienteRaw =
     extract(text, REMITO_PATTERNS.cliente) ||
     extract(text, REMITO_PATTERNS.clienteCuenta);
+  const cliente = isFormLabel(clienteRaw) ? '' : clienteRaw;
 
   return {
     fecha:                  extract(text, REMITO_PATTERNS.fecha),
     ptoVenta:               ptoVenta.trim(),
     nroRemito:              nroRemito.trim(),
-    cliente:                clienteRaw,
+    cliente,
     cuitCliente:            normalizeCuit(extract(text, REMITO_PATTERNS.cuitCliente)),
     domicilioCliente:       extract(text, REMITO_PATTERNS.domicilioCliente),
     lugarEntrega:           extract(text, REMITO_PATTERNS.lugarEntrega),
     toneladas:              extract(text, REMITO_PATTERNS.toneladas),
     producto:               extract(text, REMITO_PATTERNS.producto),
-    nroMercaderia:          extract(text, REMITO_PATTERNS.nroMercaderia),
+    nroMercaderia,
     firmado,
     firmaEstado:            presence.firmaEstado,
     aclaracionEstado:       presence.aclaracionEstado,
@@ -724,4 +736,12 @@ function extractTipo(text: string): string {
     extract(text, FACTURA_PATTERNS.tipoSameLine).toUpperCase() ||
     extract(text, FACTURA_PATTERNS.tipoNextLine).toUpperCase()
   );
+}
+
+/**
+ * Detecta si un valor extraído es en realidad una etiqueta del formulario impreso
+ * (no un nombre real de cliente). Usado para descartar falsos positivos en el campo cliente.
+ */
+function isFormLabel(value: string): boolean {
+  return /^(condici[oó]n\s+i\.?v\.?a\.?|c\.?u\.?i\.?t\.?(\s*n[°o]?)?|ing(resos)?\s+brutos|localidad|domicilio|lugar\s+de\s+entrega|se[nñ]or(es)?|imprenta|tirada|responsable\s+inscripto|km)$/i.test(value.trim());
 }
