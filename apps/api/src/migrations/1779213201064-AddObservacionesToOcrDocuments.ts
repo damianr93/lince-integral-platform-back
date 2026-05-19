@@ -34,8 +34,6 @@ export class AddObservacionesToOcrDocuments1779213201064 implements MigrationInt
         await queryRunner.query(`ALTER TYPE "public"."planta_enum" RENAME TO "planta_enum_old"`);
         await queryRunner.query(`CREATE TYPE "public"."asistencia_empleados_planta_enum" AS ENUM('tucuman', 'villa_nueva')`);
         await queryRunner.query(`ALTER TABLE "asistencia_empleados" ALTER COLUMN "planta" TYPE "public"."asistencia_empleados_planta_enum" USING "planta"::"text"::"public"."asistencia_empleados_planta_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."planta_enum_old"`);
-        await queryRunner.query(`ALTER TYPE "public"."planta_enum" RENAME TO "planta_enum_old"`);
         await queryRunner.query(`CREATE TYPE "public"."asistencia_fichajes_planta_enum" AS ENUM('tucuman', 'villa_nueva')`);
         await queryRunner.query(`ALTER TABLE "asistencia_fichajes" ALTER COLUMN "planta" TYPE "public"."asistencia_fichajes_planta_enum" USING "planta"::"text"::"public"."asistencia_fichajes_planta_enum"`);
         await queryRunner.query(`DROP TYPE "public"."planta_enum_old"`);
