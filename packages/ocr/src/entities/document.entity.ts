@@ -97,6 +97,10 @@ export class DocumentEntity {
   @Column({ name: 'reject_reason', type: 'varchar', nullable: true })
   rejectReason: string | null;
 
+  /** Observaciones detectadas automáticamente por OCR (ej: "ANULADO") */
+  @Column({ name: 'observaciones', type: 'varchar', nullable: true })
+  observaciones: string | null;
+
   // ── Timestamps ────────────────────────────────────────────────────────────
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })

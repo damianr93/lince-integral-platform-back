@@ -356,7 +356,10 @@ export class DocumentsService {
 
       // Remover rawText de los campos guardados (solo para depuración interna)
       const { rawText: _r, ...cleanFields } = fields as Record<string, string> & { rawText?: string };
-      void _r; void rawText;
+      void _r;
+
+      // Detectar documentos marcados como anulados
+      const isAnulado = /\bANULAD[OA]\b/i.test(rawText ?? '');
 
       // Validar campos extraídos
       const errors = await this.validation.validate(cleanFields, doc.type);
@@ -366,6 +369,7 @@ export class DocumentsService {
       doc.status           = errors.length > 0
         ? DocumentStatus.CON_ERRORES
         : DocumentStatus.VALIDO;
+      doc.observaciones    = isAnulado ? 'ANULADO' : null;
 
       await this.syncS3KeyFromRemitoFields(doc);
       await this.docRepo.save(doc);
