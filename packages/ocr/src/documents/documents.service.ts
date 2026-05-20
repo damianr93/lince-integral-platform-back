@@ -64,7 +64,15 @@ export class DocumentsService {
     const folder     = dto.type === DocumentType.FACTURA    ? 'facturas'
                      : dto.type === DocumentType.RETENCION ? 'retenciones'
                      : 'remitos';
-    const s3Key      = this.storage.buildS3Key(folder, documentId, dto.contentType);
+    const fileRemito = dto.type === DocumentType.REMITO && dto.uploadSource === 'LINCE_WATCHER'
+      ? parseRemitoNumberFromFileName(dto.originalFileName)
+      : null;
+    const s3Key      = this.storage.buildS3Key(
+      folder,
+      documentId,
+      dto.contentType,
+      fileRemito?.numero ?? 'noDetected',
+    );
 
     const { uploadUrl, expiresIn } = await this.storage.getPresignedUploadUrl(
       s3Key,
@@ -358,6 +366,8 @@ export class DocumentsService {
       const { rawText: _r, ...cleanFields } = fields as Record<string, string> & { rawText?: string };
       void _r;
 
+      this.applyRemitoFileNameFallback(cleanFields, doc);
+
       // Detectar documentos marcados como anulados
       const isAnulado = /\bANULAD[OA]\b/i.test(rawText ?? '');
 
@@ -392,6 +402,8 @@ export class DocumentsService {
       this.logger.error(`OCR falló para doc ${doc.id}: ${(err as Error).message}`);
       doc.status = DocumentStatus.CON_ERRORES;
       doc.validationErrors = [`Error interno de procesamiento: ${(err as Error).message}`];
+      doc.extractedData = doc.extractedData ?? {};
+      this.applyRemitoFileNameFallback(doc.extractedData, doc);
       await this.docRepo.save(doc);
     }
   }
@@ -451,6 +463,21 @@ export class DocumentsService {
         `No se pudo actualizar S3 key del doc ${doc.id}: ${(err as Error).message}`,
       );
     }
+  }
+
+  private applyRemitoFileNameFallback(
+    fields: Record<string, string>,
+    doc: DocumentEntity,
+  ): void {
+    if (doc.type !== DocumentType.REMITO) return;
+    if (fields['nroRemito']?.trim()) return;
+
+    const fileRemito = parseRemitoNumberFromFileName(doc.s3Key);
+    if (!fileRemito) return;
+
+    fields['ptoVenta'] = fields['ptoVenta']?.trim() || fileRemito.ptoVenta;
+    fields['nroRemito'] = fileRemito.nroRemito;
+    fields['numero'] = fields['numero']?.trim() || fileRemito.numero;
   }
 
   /** Busca un documento que pertenezca al usuario autenticado o falla */
@@ -552,4 +579,35 @@ function buildRemitoNumberForFileName(fields: Record<string, string> | null): st
 
   if (ptoVenta && nroRemito) return `${ptoVenta}-${nroRemito}`;
   return nroRemito || numero || 'noDetected';
+}
+
+function parseRemitoNumberFromFileName(value?: string | null): {
+  ptoVenta: string;
+  nroRemito: string;
+  numero: string;
+} | null {
+  if (!value) return null;
+
+  const decoded = decodeURIComponentSafe(value);
+  const fileName = decoded.split(/[\\/]/).pop() ?? decoded;
+  const withoutExt = fileName.replace(/\.[^.]+$/, '');
+
+  const match = withoutExt.match(/^R?(\d{4,5})[-_\s]+(\d{8})$/i);
+  if (!match) return null;
+
+  const ptoVenta = match[1];
+  const nroRemito = match[2];
+  return {
+    ptoVenta,
+    nroRemito,
+    numero: `${ptoVenta}-${nroRemito}`,
+  };
+}
+
+function decodeURIComponentSafe(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
