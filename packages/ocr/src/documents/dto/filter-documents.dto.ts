@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsDateString, IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsDateString, IsEmail, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { DocumentStatus, DocumentType } from '../../enums';
 
 /**
@@ -35,6 +35,16 @@ export class FilterDocumentsDto {
   @IsDateString()
   @IsOptional()
   dateTo?: string;
+
+  /** Buscar por número de remito (búsqueda parcial, case-insensitive) */
+  @IsString()
+  @IsOptional()
+  nroRemito?: string;
+
+  /** Filtrar por email del usuario que subió (se resuelve a UUID internamente) */
+  @IsEmail()
+  @IsOptional()
+  uploadedByEmail?: string;
 
   /** Número de página (base 1) */
   @Transform(({ value }) => parseInt(value, 10))

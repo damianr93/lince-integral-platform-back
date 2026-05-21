@@ -17,7 +17,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, FindOptionsWhere, In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthUser } from '@lince/types';
 import { DocumentEntity } from '../entities/document.entity';
@@ -162,16 +162,14 @@ export class DocumentsService {
     });
   }
 
+
   /**
    * Devuelve documentos en cola de revisión (estado REVISION_PENDIENTE o CON_ERRORES).
    * Solo ADMIN / SUPERADMIN.
    */
   async findReviewQueue(filters: FilterDocumentsDto) {
     return this.queryDocuments(filters, {
-      status: In([
-        DocumentStatus.REVISION_PENDIENTE,
-        DocumentStatus.CON_ERRORES,
-      ]) as unknown as DocumentStatus,
+      statuses: [DocumentStatus.REVISION_PENDIENTE, DocumentStatus.CON_ERRORES],
     });
   }
 
@@ -311,6 +309,16 @@ export class DocumentsService {
     const doc = await this.docRepo.findOne({ where: { id } });
     if (!doc) throw new NotFoundException(`Documento ${id} no encontrado`);
 
+    if (!this.isAdminOrSuperAdmin(user)) {
+      if (doc.uploadedBy !== user.id) {
+        throw new ForbiddenException('No tenés permisos para eliminar este documento');
+      }
+      const elapsed = Date.now() - new Date(doc.createdAt).getTime();
+      if (elapsed > 5 * 60 * 1000) {
+        throw new ForbiddenException('El plazo para eliminar este remito expiró (5 minutos desde la subida)');
+      }
+    }
+
     // Intentar eliminar de S3 (no bloquea si falla o no está configurado)
     await this.storage.deleteObject(doc.s3Key).catch((err) =>
       this.logger.warn(`No se pudo eliminar S3 key ${doc.s3Key}: ${(err as Error).message}`),
@@ -412,29 +420,56 @@ export class DocumentsService {
 
   private async queryDocuments(
     filters: FilterDocumentsDto,
-    extra: FindOptionsWhere<DocumentEntity>,
+    extra: {
+      type?:       DocumentType;
+      uploadedBy?: string;
+      statuses?:   DocumentStatus[];
+    } = {},
   ) {
-    const where: FindOptionsWhere<DocumentEntity> = { ...extra };
-
-    if (filters.type)       where.type       = filters.type;
-    if (filters.status)     where.status     = filters.status;
-    if (filters.uploadedBy) where.uploadedBy = filters.uploadedBy;
-
-    if (filters.dateFrom || filters.dateTo) {
-      const from = filters.dateFrom ? new Date(filters.dateFrom) : new Date(0);
-      const to   = filters.dateTo   ? new Date(filters.dateTo)   : new Date();
-      where.createdAt = Between(from, to);
-    }
-
     const page  = filters.page  ?? 1;
     const limit = filters.limit ?? 20;
 
-    const [items, total] = await this.docRepo.findAndCount({
-      where,
-      order:  { createdAt: 'DESC' },
-      skip:   (page - 1) * limit,
-      take:   limit,
-    });
+    const qb = this.docRepo.createQueryBuilder('doc');
+
+    if (extra.type)       qb.andWhere('doc.type = :extraType', { extraType: extra.type });
+    if (extra.uploadedBy) qb.andWhere('doc.uploadedBy = :extraUploadedBy', { extraUploadedBy: extra.uploadedBy });
+    if (extra.statuses?.length) {
+      qb.andWhere('doc.status IN (:...extraStatuses)', { extraStatuses: extra.statuses });
+    }
+
+    if (filters.type)       qb.andWhere('doc.type = :type', { type: filters.type });
+    if (filters.status)     qb.andWhere('doc.status = :status', { status: filters.status });
+    if (filters.uploadedBy) qb.andWhere('doc.uploadedBy = :uploadedBy', { uploadedBy: filters.uploadedBy });
+
+    if (filters.uploadedByEmail) {
+      qb.andWhere(
+        'doc.uploaded_by = (SELECT id FROM users WHERE email = :uploaderEmail)',
+        { uploaderEmail: filters.uploadedByEmail },
+      );
+    }
+
+    if (filters.dateFrom) {
+      qb.andWhere('doc.createdAt >= :dateFrom', { dateFrom: new Date(filters.dateFrom) });
+    }
+    if (filters.dateTo) {
+      const to = new Date(filters.dateTo);
+      to.setUTCHours(23, 59, 59, 999);
+      qb.andWhere('doc.createdAt <= :dateTo', { dateTo: to });
+    }
+
+    if (filters.nroRemito) {
+      const term = `%${filters.nroRemito}%`;
+      qb.andWhere(
+        "(doc.extracted_data->>'nroRemito' ILIKE :nr OR doc.extracted_data->>'numero' ILIKE :nr)",
+        { nr: term },
+      );
+    }
+
+    qb.orderBy('doc.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [items, total] = await qb.getManyAndCount();
 
     return { items, total, page, limit, pages: Math.ceil(total / limit) };
   }
