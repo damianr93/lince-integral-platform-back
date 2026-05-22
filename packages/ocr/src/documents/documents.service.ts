@@ -120,6 +120,8 @@ export class DocumentsService {
     }
 
     doc.status = DocumentStatus.PROCESANDO;
+    if (dto.latitude != null)  doc.latitude  = dto.latitude;
+    if (dto.longitude != null) doc.longitude = dto.longitude;
     await this.docRepo.save(doc);
 
     // OCR asíncrono — no bloquea la respuesta HTTP

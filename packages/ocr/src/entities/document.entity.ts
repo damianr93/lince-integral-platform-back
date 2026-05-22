@@ -101,6 +101,16 @@ export class DocumentEntity {
   @Column({ name: 'observaciones', type: 'varchar', nullable: true })
   observaciones: string | null;
 
+  // ── Ubicación GPS (app mobile choferes) ───────────────────────────────────
+
+  /** Latitud donde se tomó la foto del documento */
+  @Column({ name: 'latitude', type: 'float', nullable: true })
+  latitude: number | null;
+
+  /** Longitud donde se tomó la foto del documento */
+  @Column({ name: 'longitude', type: 'float', nullable: true })
+  longitude: number | null;
+
   // ── Timestamps ────────────────────────────────────────────────────────────
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
