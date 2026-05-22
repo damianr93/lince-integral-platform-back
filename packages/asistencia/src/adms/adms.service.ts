@@ -214,6 +214,7 @@ export class AdmsService {
       trimmed.startsWith('SN=') ||
       trimmed.startsWith('USER') ||
       trimmed.startsWith('FP') ||
+      trimmed.startsWith('BIODATA') ||
       trimmed === 'OK'
     ) {
       return null;
