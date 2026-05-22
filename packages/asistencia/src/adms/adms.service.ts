@@ -137,7 +137,7 @@ export class AdmsService {
         continue;
       }
 
-      const empleado = await this.findEmpleadoByPinVariants(punch.pinRaw, punch.pin);
+      const empleado = await this.findEmpleadoByPinVariants(punch.pinRaw, punch.pin, planta);
 
       await this.fichajeRepo.save(
         this.fichajeRepo.create({
@@ -313,7 +313,7 @@ export class AdmsService {
     return withoutLeadingZeros.length > 0 ? withoutLeadingZeros : '0';
   }
 
-  private async findEmpleadoByPinVariants(pinRaw: string, normalizedPin: string): Promise<EmpleadoEntity | null> {
+  private async findEmpleadoByPinVariants(pinRaw: string, normalizedPin: string, planta?: Planta | null): Promise<EmpleadoEntity | null> {
     const candidates = Array.from(
       new Set([
         pinRaw.trim(),
@@ -323,11 +323,13 @@ export class AdmsService {
       ]),
     );
 
-    return this.empleadoRepo
+    const qb = this.empleadoRepo
       .createQueryBuilder('e')
-      .where('e.pin IN (:...pins)', { pins: candidates })
-      .orderBy('LENGTH(e.pin)', 'ASC')
-      .getOne();
+      .where('e.pin IN (:...pins)', { pins: candidates });
+
+    if (planta) qb.andWhere('e.planta = :planta', { planta });
+
+    return qb.orderBy('LENGTH(e.pin)', 'ASC').getOne();
   }
 
   private resolveAttLogTimeMode(): AttLogTimeMode {
