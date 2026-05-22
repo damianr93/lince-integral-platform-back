@@ -4,7 +4,7 @@ import {
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { DocumentType } from '../enums';
+import { DocumentType } from '@lince/types';
 
 /**
  * Configuración de campos requeridos por tipo de documento.

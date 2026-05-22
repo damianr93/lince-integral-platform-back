@@ -10,7 +10,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { OcrConfigEntity } from '../entities/ocr-config.entity';
-import { DocumentType } from '../enums';
+import { DocumentType } from '@lince/types';
 import { ExtractedFields } from '../ocr.types';
 import { validateFactura } from './rules/factura.rules';
 import { validateRemito } from './rules/remito.rules';
@@ -44,12 +44,14 @@ function normalizeExtractedFields(
   return out;
 }
 
-/** Campos requeridos por defecto si no hay configuración en DB */
-const DEFAULT_REQUIRED_FIELDS: Record<DocumentType, string[]> = {
-  [DocumentType.REMITO]:    ['nroRemito', 'fecha', 'cliente'],
-  [DocumentType.FACTURA]:   ['numero', 'fecha', 'proveedor', 'cuit', 'total'],
-  [DocumentType.RETENCION]: ['cuitEmisor', 'tipoImpuesto', 'monto'],
-};
+/** Campos requeridos por defecto si no hay configuración en DB (lazy para evitar problemas de orden de inicialización CJS) */
+function getDefaultRequiredFields(): Record<DocumentType, string[]> {
+  return {
+    [DocumentType.REMITO]:    ['nroRemito', 'fecha', 'cliente'],
+    [DocumentType.FACTURA]:   ['numero', 'fecha', 'proveedor', 'cuit', 'total'],
+    [DocumentType.RETENCION]: ['cuitEmisor', 'tipoImpuesto', 'monto'],
+  };
+}
 
 @Injectable()
 export class ValidationService {
@@ -86,7 +88,7 @@ export class ValidationService {
    */
   async getRequiredFields(docType: DocumentType): Promise<string[]> {
     const config = await this.configRepo.findOne({ where: { type: docType } });
-    return config?.requiredFields ?? DEFAULT_REQUIRED_FIELDS[docType];
+    return config?.requiredFields ?? getDefaultRequiredFields()[docType];
   }
 
   /**

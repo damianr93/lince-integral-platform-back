@@ -1,20 +1,21 @@
 // Módulo raíz
 export { OcrModule } from './ocr.module';
 
-// Entidades TypeORM
-export { DocumentEntity } from './entities/document.entity';
+// Entidades TypeORM — DocumentEntity ahora vive en @lince/database
+import { DocumentEntity } from '@lince/database';
+export { DocumentEntity };
 export { OcrConfigEntity } from './entities/ocr-config.entity';
 
-// Enums
-export { DocumentStatus, DocumentType, OcrRole } from './enums';
+// Enums — re-exportados desde @lince/types
+import { DocumentStatus, DocumentType, OcrRole } from '@lince/types';
+export { DocumentStatus, DocumentType, OcrRole };
 
 // Services
 export { DocumentsService } from './documents/documents.service';
 export { ValidationService } from './validation/validation.service';
-export { StorageService } from './storage/storage.service';
+import { StorageService } from '@lince/database';
+export { StorageService };
 
 // Array listo para usar en buildDataSourceOptions() y data-source.ts
-import { DocumentEntity } from './entities/document.entity';
 import { OcrConfigEntity } from './entities/ocr-config.entity';
-
 export const ocrEntities = [DocumentEntity, OcrConfigEntity];

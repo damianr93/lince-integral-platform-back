@@ -1,6 +1,6 @@
 import { Transform } from 'class-transformer';
 import { IsDateString, IsEmail, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
-import { DocumentStatus, DocumentType } from '../../enums';
+import { DocumentStatus, DocumentType } from '@lince/types';
 
 /**
  * GET /ocr/documents          → ADMIN / SUPERADMIN (todos los documentos)

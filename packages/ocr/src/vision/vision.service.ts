@@ -16,7 +16,7 @@ import * as vision from '@google-cloud/vision';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { DocumentType } from '../enums';
+import { DocumentType } from '@lince/types';
 import type { ExtractedFields } from '../ocr.types';
 import { parseFacturaText, parseRemitoText, parseRetencionText } from './vision.parser';
 

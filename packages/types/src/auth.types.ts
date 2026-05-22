@@ -13,6 +13,7 @@ export const ModuleKey = {
   MARKETING: 'marketing',
   SOPORTE_IT: 'soporte-it',
   ASISTENCIA: 'asistencia',
+  LOGISTICA: 'logistica',
 } as const;
 
 export type ModuleKey = (typeof ModuleKey)[keyof typeof ModuleKey];

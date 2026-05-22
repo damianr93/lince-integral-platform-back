@@ -23,6 +23,7 @@
     "@lince/ocr": "workspace:*",
     "@lince/soporte-it": "workspace:*",
     "@lince/asistencia": "workspace:*",
+    "@lince/logistica": "workspace:*",
     "@lince/types": "workspace:*",
     "@nestjs/common": "^10.4.17",
     "@nestjs/config": "^3.3.0",

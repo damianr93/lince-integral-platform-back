@@ -19,7 +19,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
-import { DocumentType } from '../enums';
+import { DocumentType } from '@lince/types';
 
 interface DocumentAlert {
   documentId: string;

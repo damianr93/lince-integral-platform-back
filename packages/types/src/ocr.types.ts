@@ -1,0 +1,29 @@
+export enum OcrRole {
+  OPERADOR_CAMPO  = 'OPERADOR_CAMPO',
+  ADMINISTRATIVO  = 'ADMINISTRATIVO',
+  ADMIN           = 'ADMIN',
+}
+
+export enum DocumentType {
+  REMITO     = 'REMITO',
+  FACTURA    = 'FACTURA',
+  RETENCION  = 'RETENCION',
+}
+
+/**
+ * Ciclo de vida de un documento OCR:
+ *
+ *  PENDIENTE → PROCESANDO → VALIDO | CON_ERRORES
+ *  CON_ERRORES → REVISADO | REVISION_PENDIENTE
+ *  VALIDO | REVISADO | REVISION_PENDIENTE → APROBADO | RECHAZADO
+ */
+export enum DocumentStatus {
+  PENDIENTE          = 'PENDIENTE',
+  PROCESANDO         = 'PROCESANDO',
+  VALIDO             = 'VALIDO',
+  CON_ERRORES        = 'CON_ERRORES',
+  REVISION_PENDIENTE = 'REVISION_PENDIENTE',
+  REVISADO           = 'REVISADO',
+  APROBADO           = 'APROBADO',
+  RECHAZADO          = 'RECHAZADO',
+}

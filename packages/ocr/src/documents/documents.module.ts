@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DocumentEntity } from '../entities/document.entity';
 import { OcrConfigEntity } from '../entities/ocr-config.entity';
-import { StorageModule } from '../storage/storage.module';
+import { StorageModule } from '@lince/database';
 import { VisionModule } from '../vision/vision.module';
 import { ValidationService } from '../validation/validation.service';
 import { OcrNotificationsModule } from '../notifications/notifications.module';

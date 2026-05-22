@@ -1,6 +1,6 @@
 import { IsEnum, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
-import { DocumentType } from '../../enums';
-import { ALLOWED_MIME_TYPES, AllowedMimeType } from '../../storage/storage.service';
+import { DocumentType } from '@lince/types';
+import { ALLOWED_MIME_TYPES, AllowedMimeType } from '@lince/database';
 
 /**
  * POST /ocr/documents/upload-url

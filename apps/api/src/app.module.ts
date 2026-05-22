@@ -8,6 +8,7 @@ import { ConciliacionesModule, conciliacionesEntities } from '@lince/conciliacio
 import { OcrModule, ocrEntities } from '@lince/ocr';
 import { SoporteItModule, soporteItEntities } from '@lince/soporte-it';
 import { AsistenciaModule, asistenciaEntities } from '@lince/asistencia';
+import { LogisticaModule } from '@lince/logistica';
 import { UsersModule } from './users/users.module';
 import { AreasModule } from './areas/areas.module';
 
@@ -53,6 +54,9 @@ import { AreasModule } from './areas/areas.module';
 
     // Módulo Asistencia (relojes ZKTeco + empleados + fichajes + reportes RRHH)
     AsistenciaModule,
+
+    // Módulo Logística (remitos + mapa georeferenciado)
+    LogisticaModule,
   ],
 })
 export class AppModule {}

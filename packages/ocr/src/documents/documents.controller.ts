@@ -47,7 +47,7 @@ import { FilterDocumentsDto } from './dto/filter-documents.dto';
 import { RequestUploadUrlDto } from './dto/request-upload-url.dto';
 import { ApproveDocumentDto, RejectDocumentDto } from './dto/approve-reject.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
-import { DocumentType } from '../enums';
+import { DocumentType } from '@lince/types';
 import { IsEnum, IsObject, IsOptional } from 'class-validator';
 
 // ── DTO inline para config ────────────────────────────────────────────────────

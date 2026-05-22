@@ -1,8 +1,3 @@
-import { Module } from '@nestjs/common';
-import { StorageService } from './storage.service';
-
-@Module({
-  providers: [StorageService],
-  exports:   [StorageService],
-})
-export class StorageModule {}
+// StorageModule moved to @lince/database — import+re-export explicitly to work with isolatedModules
+import { StorageModule } from '@lince/database';
+export { StorageModule };
