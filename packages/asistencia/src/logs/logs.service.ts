@@ -140,7 +140,10 @@ export class LogsService {
 
     if (input.estado !== undefined) fichaje.estado = input.estado;
     if (input.tiempo !== undefined) fichaje.tiempo = input.tiempo;
-    if (input.empleadoId !== undefined) fichaje.empleadoId = input.empleadoId;
+    if (input.empleadoId !== undefined) {
+      fichaje.empleadoId = input.empleadoId;
+      if (input.empleadoId === null) fichaje.empleado = null;
+    }
 
     return this.repo.save(fichaje);
   }
