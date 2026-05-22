@@ -12,6 +12,7 @@ COPY packages/conciliaciones/package.json ./packages/conciliaciones/package.json
 COPY packages/ocr/package.json ./packages/ocr/package.json
 COPY packages/asistencia/package.json ./packages/asistencia/package.json
 COPY packages/soporte-it/package.json ./packages/soporte-it/package.json
+COPY packages/logistica/package.json ./packages/logistica/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 COPY packages/eslint-config/package.json ./packages/eslint-config/package.json
 COPY packages/typescript-config/package.json ./packages/typescript-config/package.json
