@@ -158,20 +158,28 @@ export class LogsService {
     const allEmpleados = await this.empleadoRepo.find();
     this.logger.log(`reconcileUnmatched: ${allEmpleados.length} empleados en DB`);
 
+    // Índice por (planta, pin) para evitar cruzar empleados de distintas plantas
+    const plantaPinIndex = new Map<string, EmpleadoEntity>();
     const pinIndex = new Map<string, EmpleadoEntity>();
     for (const emp of allEmpleados) {
       const norm = this.normalizePin(emp.pin);
-      pinIndex.set(norm, emp);
-      pinIndex.set(emp.pin, emp);
-      pinIndex.set(norm.padStart(8, '0'), emp);
+      const variants = [norm, emp.pin, norm.padStart(8, '0')];
+      for (const v of variants) {
+        if (emp.planta) plantaPinIndex.set(`${emp.planta}:${v}`, emp);
+        pinIndex.set(v, emp);
+      }
     }
 
-    this.logger.log(`reconcileUnmatched: índice de pins construido con ${pinIndex.size} entradas`);
+    this.logger.log(`reconcileUnmatched: índice de pins construido con ${plantaPinIndex.size} entradas por planta`);
 
     let matched = 0;
     for (const row of rows) {
       const key = this.normalizePin(row.pin);
-      const empleado = pinIndex.get(key) ?? pinIndex.get(row.pin) ?? null;
+      // Primero buscar por planta del fichaje, luego fallback a cualquier planta
+      const empleado = (row.planta ? (plantaPinIndex.get(`${row.planta}:${key}`) ?? plantaPinIndex.get(`${row.planta}:${row.pin}`)) : null)
+        ?? pinIndex.get(key)
+        ?? pinIndex.get(row.pin)
+        ?? null;
       if (!empleado) {
         this.logger.debug(`Sin match para PIN="${row.pin}" (normalizado="${key}")`);
         continue;
