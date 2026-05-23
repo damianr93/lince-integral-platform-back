@@ -8,7 +8,7 @@ import { ConciliacionesModule, conciliacionesEntities } from '@lince/conciliacio
 import { OcrModule, ocrEntities } from '@lince/ocr';
 import { SoporteItModule, soporteItEntities } from '@lince/soporte-it';
 import { AsistenciaModule, asistenciaEntities } from '@lince/asistencia';
-import { LogisticaModule } from '@lince/logistica';
+import { LogisticaModule, logisticaEntities } from '@lince/logistica';
 import { UsersModule } from './users/users.module';
 import { AreasModule } from './areas/areas.module';
 
@@ -27,7 +27,7 @@ import { AreasModule } from './areas/areas.module';
       useFactory: (config: ConfigService) =>
         buildDataSourceOptions(
           config.getOrThrow<string>('DATABASE_URL'),
-          [...conciliacionesEntities, ...ocrEntities, ...soporteItEntities, ...asistenciaEntities, AreaEntity],
+          [...conciliacionesEntities, ...ocrEntities, ...soporteItEntities, ...asistenciaEntities, ...logisticaEntities, AreaEntity],
         ),
     }),
 

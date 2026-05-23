@@ -120,6 +120,9 @@ importers:
       '@types/passport-jwt':
         specifier: ^4.0.1
         version: 4.0.1
+      '@xmldom/xmldom':
+        specifier: ^0.9.10
+        version: 0.9.10
       eslint:
         specifier: ^9.39.1
         version: 9.39.1(jiti@1.21.7)
@@ -1890,6 +1893,10 @@ packages:
   '@typescript-eslint/visitor-keys@8.50.0':
     resolution: {integrity: sha512-Xzmnb58+Db78gT/CCj/PVCvK+zxbnsw6F+O1oheYszJbBSdEjVhQi3C/Xttzxgi/GLmpvOggRs1RFpiJ8+c34Q==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@xmldom/xmldom@0.9.10':
+    resolution: {integrity: sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw==}
+    engines: {node: '>=14.6'}
 
   abort-controller@3.0.0:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
@@ -6530,6 +6537,8 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 8.50.0
       eslint-visitor-keys: 4.2.1
+
+  '@xmldom/xmldom@0.9.10': {}
 
   abort-controller@3.0.0:
     dependencies:
