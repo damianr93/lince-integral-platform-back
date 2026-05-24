@@ -18,7 +18,12 @@ import * as os from 'os';
 import * as path from 'path';
 import { DocumentType } from '@lince/types';
 import type { ExtractedFields } from '../ocr.types';
-import { parseFacturaText, parseRemitoText, parseRetencionText } from './vision.parser';
+import {
+  parseFacturaText,
+  parseRemitoText,
+  parseRetencionText,
+  detectRemitoPresence as detectRemitoPresenceFromText,
+} from './vision.parser';
 
 export type { ExtractedFields } from '../ocr.types';
 
@@ -219,12 +224,19 @@ export class VisionService {
       'lugar_entrega', 'lugar_de_entreg',
     ]);
 
+    // Combinar rawText + valores del formMap para que la detección encuentre el
+    // contenido cuando Document AI lo movió a campos en lugar de dejarlo en el texto.
+    const formText = Array.from(formMap.entries())
+      .map(([key, value]) => `${key} ${value}`)
+      .join('\n');
+    const combinedText = `${rawText}\n${formText}`;
+    const presence = detectRemitoPresenceFromText(combinedText);
+
     // Firma: si el campo "firma" tiene contenido (nombre/DNI), está firmado.
     // El campo suele estar bajo clave "on" porque OCR lee mal el label.
     // Buscamos cualquier campo cuyo valor empiece con "FIRMA".
     const firmaVal = this.findFieldStartingWith(formMap, 'FIRMA');
-    const firmado  = firmaVal && firmaVal.trim().length > 6 ? 'si' : '';
-    const presence = detectRemitoPresence(rawText, formMap);
+    const firmado  = (firmaVal && firmaVal.trim().length > 6) || presence.firmaEstado === 'si' ? 'si' : '';
 
     // CUIT cliente: campo "CUIT N" → clave normalizada "cuit_n"
     const cuitCliente = normalizeCuit(form(['cuit_n', 'cuit_cliente']));
@@ -816,71 +828,3 @@ function extractRemitoNumberFromText(text: string): string {
   return '';
 }
 
-type RemitoPresenceState = 'si' | 'duda' | 'no';
-
-function detectRemitoPresence(
-  rawText: string,
-  formMap: Map<string, string>,
-): Record<'firmaEstado' | 'aclaracionEstado' | 'dniEstado', RemitoPresenceState> {
-  const formText = Array.from(formMap.entries())
-    .map(([key, value]) => `${key} ${value}`)
-    .join('\n');
-  const text = normalizeText(`${rawText}\n${formText}`);
-
-  const firmaLabel = /\bFIRMA\b/i.test(text);
-  const aclaracionLabel = /\bACLARACI[OÓ]N\b|\baclaraci_n\b/i.test(text);
-  const dniLabel = /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|\bd_n_i\b/i.test(text);
-
-  const firmaContent = hasLabeledContent(text, /\bFIRMA\b/i, /\bACLARACI[OÓ]N\b|\baclaraci_n\b|\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|\bd_n_i\b|Una vez|IMPRENTA|Tirada/i);
-  const aclaracionContent = hasLabeledContent(text, /\bACLARACI[OÓ]N\b|\baclaraci_n\b/i, /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|\bd_n_i\b|Una vez|IMPRENTA|Tirada/i);
-  const dniContent = hasActualDniContent(text);
-
-  return {
-    firmaEstado: toPresence(firmaLabel, firmaContent),
-    aclaracionEstado: toPresence(aclaracionLabel, aclaracionContent),
-    dniEstado: toPresence(dniLabel, dniContent),
-  };
-}
-
-function toPresence(hasLabel: boolean, hasContent: boolean): RemitoPresenceState {
-  if (hasContent) return 'si';
-  if (hasLabel) return 'duda';
-  return 'no';
-}
-
-/**
- * Detecta si hay un DNI argentino real escrito después de la etiqueta "D.N.I." en el texto.
- * Busca solo en la sección entre la etiqueta y el siguiente ancla (Una vez / IMPRENTA).
- * Descarta explícitamente números en formato CUIT para evitar falsos positivos.
- */
-function hasActualDniContent(text: string): boolean {
-  const labelMatch = /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|\bd_n_i\b/i.exec(text);
-  if (!labelMatch) return false;
-
-  const after = text.slice(labelMatch.index + labelMatch[0].length);
-  const endMatch = /Una vez|IMPRENTA|Tirada/i.exec(after);
-  const section = after.slice(0, endMatch?.index ?? Math.min(after.length, 200));
-
-  // Quitar números en formato CUIT (NN-NNNNNNNN-N) para no confundirlos con DNI
-  const withoutCuit = section.replace(/\d{2}[\s.\-]\d{7,8}[\s.\-]\d/g, '');
-
-  // DNI argentino: 7-8 dígitos totales separados en grupos (ej: 32.343.227 o 32 343 227)
-  return /\b\d{1,2}[.\s]\d{3}[.\s]\d{3}\b/.test(withoutCuit) ||
-         /\b\d{7,8}\b/.test(withoutCuit.replace(/[.\s]/g, ''));
-}
-
-function hasLabeledContent(text: string, label: RegExp, until: RegExp): boolean {
-  const match = label.exec(text);
-  if (!match || match.index == null) return false;
-
-  const rest = text.slice(match.index + match[0].length);
-  const endMatch = until.exec(rest);
-  const section = rest.slice(0, endMatch?.index ?? rest.length);
-  const clean = section
-    .replace(/[_\-–—.:|/\\]+/g, ' ')
-    .replace(/\b(firma|aclaraci[oó]n|aclaraci_n|d\.?\s*n\.?\s*i\.?|dni|d_n_i)\b/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  return /[A-ZÁÉÍÓÚÜÑ]{2,}/i.test(clean) || /\d{3,}/.test(clean);
-}

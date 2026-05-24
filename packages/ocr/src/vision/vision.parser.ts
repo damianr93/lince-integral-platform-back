@@ -154,12 +154,47 @@ function extractRemitoNumber(text: string): string {
   return '';
 }
 
-type RemitoPresenceState = 'si' | 'duda' | 'no';
+export type RemitoPresenceState = 'si' | 'duda' | 'no';
 
-interface RemitoPresenceFields {
+export interface RemitoPresenceFields {
   firmaEstado: RemitoPresenceState;
   aclaracionEstado: RemitoPresenceState;
   dniEstado: RemitoPresenceState;
+}
+
+// Labels — incluyen variantes OCR observadas en remitos reales escaneados por celular
+// FIRMA → "FOMA"; ACLARACIÓN → "ACLARACION/ACLARAN/ACLARA/ACLACION"; D.N.I. → "ONI/ONE/INTO"
+const FIRMA_LABEL_RE = /\b(?:FIRMA|FOMA)\b/i;
+const ACLAR_LABEL_RE = /\bACL[A-ZÁ]{2,}\b|aclaraci_n/i;
+const DNI_LABEL_RE   = /\b(?:D\.?\s*N\.?\s*I\.?|DNI|ONI|ONE|INTO)\b|d_n_i/i;
+const SIG_BLOCK_END  = /Una\s+ve[zr]\s+conform|\bIMPRENTA\b|\bTirada\b|Fecha\s+impres/i;
+const MERCADERIA_HDR = /MERCADER[IÍ]A\s+RETIRADA\s+DE\s+PLANTA/i;
+const LABEL_TOKENS_RE = /\b(?:FIRMA|FOMA|ACL[A-ZÁ]{2,}|aclaraci_n|D\.?\s*N\.?\s*I\.?|DNI|ONI|ONE|INTO|d_n_i)\b/gi;
+
+/**
+ * Detecta presencia de firma/aclaración/DNI en el rawText de un remito.
+ *
+ * Estrategia robusta a OCR ruidoso:
+ *  1. Localiza el "bloque de firma" entre la primera label (FIRMA/FOMA) o el header
+ *     de mercadería retirada, y los anclajes finales (Una vez conformado / IMPRENTA).
+ *  2. Detecta presencia de labels en todo el texto (admitiendo variantes OCR).
+ *  3. Detecta presencia de contenido dentro del bloque: DNI numérico, palabras de
+ *     aclaración o cualquier texto manuscrito.
+ *
+ * Estado: 'si' si hay contenido, 'duda' si solo hay label, 'no' si nada.
+ */
+export function detectRemitoPresence(text: string): RemitoPresenceFields {
+  const block = extractSignatureBlock(text);
+
+  const firmaLabel = FIRMA_LABEL_RE.test(text);
+  const aclLabel   = ACLAR_LABEL_RE.test(text);
+  const dniLabel   = DNI_LABEL_RE.test(text);
+
+  return {
+    firmaEstado:      fieldPresence(firmaLabel, hasFirmaContent(block)),
+    aclaracionEstado: fieldPresence(aclLabel,   hasAclaracionContent(block)),
+    dniEstado:        fieldPresence(dniLabel,   hasDniContent(block)),
+  };
 }
 
 function fieldPresence(hasLabel: boolean, hasContent: boolean): RemitoPresenceState {
@@ -168,59 +203,94 @@ function fieldPresence(hasLabel: boolean, hasContent: boolean): RemitoPresenceSt
   return 'no';
 }
 
-function extractSectionAfterLabel(text: string, label: RegExp, until: RegExp): string {
-  const match = label.exec(text);
-  if (!match || match.index == null) return '';
+function extractSignatureBlock(text: string): string {
+  const firmaM = FIRMA_LABEL_RE.exec(text);
+  const mercM  = MERCADERIA_HDR.exec(text);
 
-  const from = match.index + match[0].length;
-  const rest = text.slice(from);
-  const endMatch = until.exec(rest);
-  const to = endMatch?.index ?? rest.length;
-  return rest.slice(0, to).trim();
+  let start = -1;
+  // Si la label FIRMA aparece DESPUÉS del header de mercadería, usarla — es el
+  // ancla más precisa (todo lo que sigue es contenido manuscrito).
+  // Si no, caer al header de mercadería para no perder casos donde "FIRMA" no fue OCR-eada.
+  if (firmaM && (!mercM || firmaM.index > mercM.index)) {
+    start = firmaM.index + firmaM[0].length;
+  } else if (mercM) {
+    start = mercM.index + mercM[0].length;
+  } else if (firmaM) {
+    start = firmaM.index + firmaM[0].length;
+  } else {
+    return '';
+  }
+
+  const after = text.slice(start);
+  const endM  = SIG_BLOCK_END.exec(after);
+  const raw   = after.slice(0, endM?.index ?? Math.min(after.length, 600));
+
+  // Limpiar elementos que NO son contenido manuscrito (caen dentro cuando se entra
+  // por el ancla MERCADERIA): número de mercadería, "Sub Total", filas numéricas cortas.
+  return raw
+    .replace(/^[\t ]*R[O0]?\d{3,5}[-\s]?\d{5,8}(?:[-\s]?\d{5,8})?\b.*$/gim, ' ')
+    .replace(/^[\t ]*\d{5,6}[\t ]*$/gm, ' ')
+    .replace(/^[\t ]*Sub[\t ]*$/gim, ' ')
+    .replace(/^[\t ]*Total[:\s]*\d*[\t ]*$/gim, ' ');
 }
 
-function hasMeaningfulHandwrittenText(section: string): boolean {
-  const clean = section
-    .replace(/[_\-–—.:|/\\]+/g, ' ')
-    .replace(/\b(firma|aclaraci[oó]n|d\.?\s*n\.?\s*i\.?|dni)\b/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  return /[A-ZÁÉÍÓÚÜÑ]{2,}/i.test(clean) || /\d{3,}/.test(clean);
+function hasDniContent(block: string): boolean {
+  let s = block;
+  // Descartar CUITs (NN-NNNNNNNN-N) para que no se confundan con DNI
+  s = s.replace(/\b\d{2}[\s.\-]\d{7,8}[\s.\-]\d\b/g, ' ');
+  // Descartar montos con decimales (1.234.567,89 / 27,56). El requerimiento
+  // estricto de los 2 decimales finales evita consumir DNIs como "42.212.511"
+  // que tienen formato similar a miles-separados pero sin centavos.
+  s = s.replace(/\b\d{1,3}(?:[.,]\d{3})+[.,]\d{2}\b/g, ' ');
+  s = s.replace(/\b\d+[.,]\d{2}(?!\d)/g, ' ');
+  // Colapsar separadores entre dígitos para detectar DNIs OCR-eados con espacios/puntos:
+  //   "42.212.511" → "42212511" ; "38.774555" → "38774555" ; "37 953 109" → "37953109"
+  const flat = s.replace(/(\d)[.\s](?=\d)/g, '$1');
+  return /(?<!\d)\d{7,8}(?!\d)/.test(flat);
 }
 
-function detectRemitoPresenceFromText(text: string): RemitoPresenceFields {
-  const firmaLabel = /\bFIRMA\b/i.test(text);
-  const aclaracionLabel = /\bACLARACI[OÓ]N\b/i.test(text);
-  const dniLabel = /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b/i.test(text);
+function hasAclaracionContent(block: string): boolean {
+  const clean = stripLabelsAndNoise(block).replace(/\d+/g, ' ').replace(/\s+/g, ' ').trim();
+  const words = clean.split(/\s+/).filter((w) => /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}$/.test(w));
+  return words.length >= 2;
+}
 
-  const firmaSection = extractSectionAfterLabel(
-    text,
-    /\bFIRMA\b/i,
-    /\bACLARACI[OÓ]N\b|\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|Una vez|IMPRENTA|Tirada/i,
-  );
-  const aclaracionSection = extractSectionAfterLabel(
-    text,
-    /\bACLARACI[OÓ]N\b/i,
-    /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b|Una vez|IMPRENTA|Tirada/i,
-  );
-  const dniSection = extractSectionAfterLabel(
-    text,
-    /\bD\.?\s*N\.?\s*I\.?\b|\bDNI\b/i,
-    /Una vez|IMPRENTA|Tirada|Fecha/i,
-  );
+function hasFirmaContent(block: string): boolean {
+  const clean = stripLabelsAndNoise(block).replace(/\s+/g, ' ').trim();
+  return /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{3,}/.test(clean) || /\b\d{4,}\b/.test(clean);
+}
 
-  // Buscar DNI solo en la sección post-etiqueta y descartar CUITs (mismo criterio que hasActualDniContent)
-  const withoutCuit = dniSection.replace(/\d{2}[\s.\-]\d{7,8}[\s.\-]\d/g, '');
-  const dniNumber =
-    /\b\d{1,2}[.\s]\d{3}[.\s]\d{3}\b/.test(withoutCuit) ||
-    /\b\d{7,8}\b/.test(withoutCuit.replace(/[.\s]/g, ''));
+function stripLabelsAndNoise(block: string): string {
+  return block
+    .replace(LABEL_TOKENS_RE, ' ')
+    .replace(/[_\-–—.:|/\\=]+/g, ' ');
+}
 
-  return {
-    firmaEstado: fieldPresence(firmaLabel, hasMeaningfulHandwrittenText(firmaSection)),
-    aclaracionEstado: fieldPresence(aclaracionLabel, hasMeaningfulHandwrittenText(aclaracionSection)),
-    dniEstado: fieldPresence(dniLabel, dniNumber || hasMeaningfulHandwrittenText(dniSection)),
-  };
+/**
+ * Extrae la fecha del remito con varias estrategias en orden de confianza:
+ *  1. Después de label "FECHA"/"FEC"/"FECHOR" (variantes OCR).
+ *  2. Cerca de "Ordenanza" (suele aparecer en la misma línea o la siguiente).
+ *  3. Primera fecha del encabezado, descartando "Inicio de Actividades", "Vto", "impresión".
+ */
+function extractRemitoFecha(text: string): string {
+  const labelM = /\bFEC(?:HA|HOR)?\b[\s:.\n]+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i.exec(text);
+  if (labelM?.[1]) return labelM[1];
+
+  const ordenanzaM = /Ordenanza[^\n]{0,40}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i.exec(text);
+  if (ordenanzaM?.[1]) return ordenanzaM[1];
+
+  const header = text.slice(0, 1500);
+  const dateRe = /\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = dateRe.exec(header)) !== null) {
+    const pos = m.index;
+    const window = header
+      .slice(Math.max(0, pos - 60), Math.min(header.length, pos + m[0].length + 30))
+      .toLowerCase();
+    if (/inicio\s+de\s+actividad|impres|v[ée]nci|vto|f\.?\s*v\b/.test(window)) continue;
+    return m[1];
+  }
+  return '';
 }
 
 // ── Retención: pipeline candidatos + scoring ───────────────────────────────────
@@ -640,8 +710,8 @@ export function parseRemitoText(rawText: string): RemitoFields {
 
   // Firma: si hay contenido (nombre/DNI) después de "FIRMA", está firmado
   const firmaContenido = extract(text, REMITO_PATTERNS.firma);
-  const firmado = firmaContenido.trim().length > 2 ? 'si' : 'no';
-  const presence = detectRemitoPresenceFromText(text);
+  const presence = detectRemitoPresence(text);
+  const firmado = presence.firmaEstado === 'si' || firmaContenido.trim().length > 2 ? 'si' : 'no';
 
   // Chofer: limpiar el código entre paréntesis "(184)"
   const choferRaw = extract(text, REMITO_PATTERNS.chofer);
@@ -655,7 +725,7 @@ export function parseRemitoText(rawText: string): RemitoFields {
   const cliente = isFormLabel(clienteRaw) ? '' : clienteRaw;
 
   return {
-    fecha:                  extract(text, REMITO_PATTERNS.fecha),
+    fecha:                  extractRemitoFecha(text),
     ptoVenta:               ptoVenta.trim(),
     nroRemito:              nroRemito.trim(),
     cliente,
