@@ -33,6 +33,11 @@ export class RemitosController {
     return this.remitosService.findOne(id);
   }
 
+  @Get(':id/view-url')
+  getViewUrl(@Param('id', ParseUUIDPipe) id: string) {
+    return this.remitosService.getViewUrl(id);
+  }
+
   @Get(':id/file')
   @Redirect()
   async downloadFile(@Param('id', ParseUUIDPipe) id: string) {

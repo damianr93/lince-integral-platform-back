@@ -112,6 +112,13 @@ export class RemitosService {
     };
   }
 
+  async getViewUrl(id: string): Promise<{ url: string }> {
+    const doc = await this.docRepo.findOne({ where: { id, type: DocumentType.REMITO } });
+    if (!doc) throw new NotFoundException('Remito no encontrado');
+    const url = doc.s3Key ? await this.storage.getPresignedViewUrl(doc.s3Key) : '';
+    return { url };
+  }
+
   async getDownloadUrl(id: string): Promise<string> {
     const doc = await this.docRepo.findOne({ where: { id, type: DocumentType.REMITO } });
     if (!doc) throw new NotFoundException('Remito no encontrado');
