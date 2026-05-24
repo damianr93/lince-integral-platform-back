@@ -26,6 +26,7 @@ export interface RemitoDetalle extends RemitoLogistica {
   lugarEntrega: string | null;
   observaciones: string | null;
   viewUrl: string;
+  isPdf: boolean;
 }
 
 @Injectable()
@@ -109,6 +110,7 @@ export class RemitosService {
       lugarEntrega: doc.extractedData?.['lugarEntrega'] ?? null,
       observaciones: doc.observaciones,
       viewUrl,
+      isPdf: doc.s3Key?.toLowerCase().endsWith('.pdf') ?? false,
     };
   }
 
