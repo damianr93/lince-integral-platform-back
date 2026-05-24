@@ -165,11 +165,14 @@ export interface RemitoPresenceFields {
 // Labels — incluyen variantes OCR observadas en remitos reales escaneados por celular
 // FIRMA → "FOMA"; ACLARACIÓN → "ACLARACION/ACLARAN/ACLARA/ACLACION"; D.N.I. → "ONI/ONE/INTO"
 const FIRMA_LABEL_RE = /\b(?:FIRMA|FOMA)\b/i;
-const ACLAR_LABEL_RE = /\bACL[A-ZÁ]{2,}\b|aclaraci_n/i;
+const ACLAR_LABEL_RE = /\bACL\p{L}{2,}\b|aclaraci_n/iu;
 const DNI_LABEL_RE   = /\b(?:D\.?\s*N\.?\s*I\.?|DNI|ONI|ONE|INTO)\b|d_n_i/i;
 const SIG_BLOCK_END  = /Una\s+ve[zr]\s+conform|\bIMPRENTA\b|\bTirada\b|Fecha\s+impres/i;
 const MERCADERIA_HDR = /MERCADER[IÍ]A\s+RETIRADA\s+DE\s+PLANTA/i;
-const LABEL_TOKENS_RE = /\b(?:FIRMA|FOMA|ACL[A-ZÁ]{2,}|aclaraci_n|D\.?\s*N\.?\s*I\.?|DNI|ONI|ONE|INTO|d_n_i)\b/gi;
+// Strip de label tokens dentro del bloque. Usamos \p{L}{2,} con flag /u para
+// admitir variantes con acento (ACLARACIÓN, ACLARÁ) que el viejo [A-ZÁ] no
+// cubría → quedaban sin strippear y aparecían como palabra válida.
+const LABEL_TOKENS_RE = /\b(?:FIRMA|FOMA|ACL\p{L}{2,}|aclaraci_n|D\.?\s*N\.?\s*I\.?|DNI|ONI|ONE|INTO|d_n_i)\b/giu;
 
 /**
  * Detecta presencia de firma/aclaración/DNI en el rawText de un remito.
@@ -207,31 +210,53 @@ function extractSignatureBlock(text: string): string {
   const firmaM = FIRMA_LABEL_RE.exec(text);
   const mercM  = MERCADERIA_HDR.exec(text);
 
-  let start = -1;
+  let labelPos = -1;
+  let postStart = -1;
   // Si la label FIRMA aparece DESPUÉS del header de mercadería, usarla — es el
-  // ancla más precisa (todo lo que sigue es contenido manuscrito).
-  // Si no, caer al header de mercadería para no perder casos donde "FIRMA" no fue OCR-eada.
+  // ancla más precisa. Si no, caer al header de mercadería para no perder casos
+  // donde "FIRMA" no fue OCR-eada o aparece antes del número de mercadería.
   if (firmaM && (!mercM || firmaM.index > mercM.index)) {
-    start = firmaM.index + firmaM[0].length;
+    labelPos  = firmaM.index;
+    postStart = firmaM.index + firmaM[0].length;
   } else if (mercM) {
-    start = mercM.index + mercM[0].length;
+    labelPos  = mercM.index;
+    postStart = mercM.index + mercM[0].length;
   } else if (firmaM) {
-    start = firmaM.index + firmaM[0].length;
+    labelPos  = firmaM.index;
+    postStart = firmaM.index + firmaM[0].length;
   } else {
     return '';
   }
 
-  const after = text.slice(start);
-  const endM  = SIG_BLOCK_END.exec(after);
-  const raw   = after.slice(0, endM?.index ?? Math.min(after.length, 600));
+  // PRE-bloque: últimas 5 líneas antes del ancla. Captura contenido manuscrito
+  // cuando Document AI lo ubica ANTES de las labels (el cuadro de firma suele
+  // estar a la izquierda de MERCADERIA en el form, y el OCR lee izquierda-a-
+  // derecha). 5 líneas es el mínimo necesario para incluir hasta la fila de
+  // toneladas/producto sin tocar la fila de Chofer/Camión/Batea.
+  const beforeText = text.slice(0, labelPos);
+  const preBlock   = beforeText.split('\n').slice(-5).join('\n');
 
-  // Limpiar elementos que NO son contenido manuscrito (caen dentro cuando se entra
-  // por el ancla MERCADERIA): número de mercadería, "Sub Total", filas numéricas cortas.
+  // POST-bloque: desde el ancla hasta el cierre del cuadro (Una vez / IMPRENTA).
+  const afterText = text.slice(postStart);
+  const endM      = SIG_BLOCK_END.exec(afterText);
+  const postBlock = afterText.slice(0, endM?.index ?? Math.min(afterText.length, 600));
+
+  const raw = `${preBlock}\n${postBlock}`;
   return raw
     .replace(/^[\t ]*R[O0]?\d{3,5}[-\s]?\d{5,8}(?:[-\s]?\d{5,8})?\b.*$/gim, ' ')
     .replace(/^[\t ]*\d{5,6}[\t ]*$/gm, ' ')
     .replace(/^[\t ]*Sub[\t ]*$/gim, ' ')
-    .replace(/^[\t ]*Total[:\s]*\d*[\t ]*$/gim, ' ');
+    .replace(/^[\t ]*Total[:\s]*\d*[\t ]*$/gim, ' ')
+    .replace(/MERCADER[IÍ]A\s+RETIRADA\s+DE\s+PLANTA/gi, ' ')
+    .replace(/\bBURLAN\w*\b/gi, ' ')
+    .replace(/\b(?:GLUTEN|MA[IÍ]Z|SOJA|GIRASOL|TRIGO|SORGO|AFRECHILLO|PELLETS?)\b/gi, ' ')
+    // Montos con decimales (siempre terminan en ,XX o .XX): 1.234.567,89 / 27,56 / 0,00
+    .replace(/\b\d{1,3}(?:[.,]\d{3})+[.,]\d{2}\b(?!\d)/g, ' ')
+    .replace(/\b\d+[.,]\d{2}\b(?!\d)/g, ' ')
+    // Números con mil-separador sin decimales (toneladas: 28.940, 5.200). Los
+    // lookarounds evitan consumir grupos internos de un DNI: en "42.212.511"
+    // el grupo "212.511" NO debe matchear porque antes hay "\d[.,]" ("2.").
+    .replace(/(?<!\d[.,])\b\d{1,3}[.,]\d{3}\b(?![.,]\d)/g, ' ');
 }
 
 function hasDniContent(block: string): boolean {
@@ -257,7 +282,10 @@ function hasAclaracionContent(block: string): boolean {
 
 function hasFirmaContent(block: string): boolean {
   const clean = stripLabelsAndNoise(block).replace(/\s+/g, ' ').trim();
-  return /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{3,}/.test(clean) || /\b\d{4,}\b/.test(clean);
+  // Umbral bajo: incluso 2 letras seguidas pueden ser iniciales de firma manuscrita.
+  // El bloque ya viene limpio de labels y montos, por lo que el riesgo de falso
+  // positivo es bajo.
+  return /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}/.test(clean) || /\b\d{4,}\b/.test(clean);
 }
 
 function stripLabelsAndNoise(block: string): string {

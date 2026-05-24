@@ -11,6 +11,10 @@
 import { detectRemitoPresence, parseRemitoText } from '../vision/vision.parser';
 
 const RAW_ANULADO_5368 = `
+Camión: GTV
+Baton AC9108
+27,56
+BURLANDA
 MERCADERÍA RETIRADA DE PLANTA
 Total:
 FOMA
@@ -67,6 +71,23 @@ describe('detectRemitoPresence — variantes OCR reales', () => {
     expect(p.firmaEstado).toBe('duda');      // FOMA detectado, sin contenido manuscrito
     expect(p.aclaracionEstado).toBe('duda'); // ACLARACION sin contenido
     expect(p.dniEstado).toBe('duda');        // INTO (D.N.I.) sin contenido
+  });
+
+  it('caso firma manuscrita justo antes de FIRMA label (Savonese "Se")', () => {
+    const raw = `
+      0,00
+      BURLANDA 28.940
+      MERCADERÍA RETIRADA DE PLANTA
+      R0008-00003845 156 7 7 5156775
+      Total:
+      Se
+      FIRMA
+      ACLARACIÓN
+      Una vez conformado el siguiente remito
+      D.N.I.
+    `;
+    const p = detectRemitoPresence(raw);
+    expect(p.firmaEstado).toBe('si'); // "Se" 2 letras → detectado
   });
 
   it('remito 5364 firmado por Nicolas — detecta firma, aclaración y DNI', () => {
