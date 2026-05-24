@@ -68,6 +68,10 @@ export class RemitosService {
     if (filters.status) {
       qb.andWhere('doc.status = :status', { status: filters.status });
     }
+    if (filters.uploadedByEmail) {
+      const user = await this.userRepo.findOne({ where: { email: filters.uploadedByEmail } });
+      qb.andWhere('doc.uploadedBy = :uploadedBy', { uploadedBy: user?.id ?? 'none' });
+    }
 
     const [docs, total] = await qb.getManyAndCount();
     const items = await this.enrichDocs(docs);

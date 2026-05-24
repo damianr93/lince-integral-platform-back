@@ -31,4 +31,8 @@ export class FilterRemitosDto {
   @IsOptional()
   @IsEnum(DocumentStatus)
   status?: DocumentStatus;
+
+  @IsOptional()
+  @IsString()
+  uploadedByEmail?: string;
 }
