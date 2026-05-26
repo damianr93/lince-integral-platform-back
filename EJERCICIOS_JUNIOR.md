@@ -146,3 +146,54 @@ Si se agrega un asesor nuevo (ya pasó antes — se agregó JULIAN), hay que aco
 | 5 | TODO-5 unificar asesores | 1-2 hs |
 
 Hacé los primeros cuatro en un solo commit, y el cinco en otro separado (es un cambio más grande que conviene revisar aparte).
+
+---
+
+## Etapa 2
+
+Cuando terminés la etapa 1, seguí con estos. Son más cortos de leer pero requieren más criterio para resolverlos bien.
+
+---
+
+## TODO-6 — Método deprecado en remitos.service.ts
+**Dificultad:** Fácil  
+**Archivo:** `packages/logistica/src/remitos/remitos.service.ts`  
+**Buscá:** `TODO-6` dentro del método `enrichDocs()`
+
+Investigá si `findByIds()` existe en la versión de TypeORM que usa el proyecto (`package.json`). Si no existe, buscá cuál es el reemplazo oficial y aplicalo.
+
+---
+
+## TODO-7 — Línea sin efecto en geo-layers.service.ts
+**Dificultad:** Fácil  
+**Archivo:** `packages/logistica/src/geo-layers/geo-layers.service.ts`  
+**Buscá:** `TODO-7` en el método `update()`
+
+Analizá qué hace esa línea. Luego pensá: ¿qué debería hacer? Corregila.
+
+---
+
+## TODO-8 — Cast innecesario en reconciliations.service.ts
+**Dificultad:** Medio  
+**Archivo:** `packages/conciliaciones/src/reconciliations/reconciliations.service.ts`  
+**Buscá:** `TODO-8`
+
+Los arrays que se pasan a `manager.insert()` ya tienen tipo. Investigá por qué se usa `as any[]`, si TypeORM realmente lo requiere, y si hay una forma de eliminarlo sin perder type safety.
+
+---
+
+## TODO-9 — Doble cast en follow-up-events.service.ts
+**Dificultad:** Medio  
+**Archivo:** `packages/crm/src/follow-up/follow-up-events.service.ts`  
+**Buscá:** `TODO-9`
+
+Revisá la firma de `.lean()` en Mongoose. ¿Acepta un tipo genérico? Si es así, reescribí la línea sin el doble cast.
+
+---
+
+## TODO-10 — Sin manejo de error en auth.service.ts
+**Dificultad:** Medio  
+**Archivo:** `packages/auth/src/auth.service.ts`  
+**Buscá:** `TODO-10` antes del método `login()`
+
+Pensá qué pasa si la base de datos está caída cuando un usuario intenta loguearse. ¿El error que llega al cliente es el correcto? Corregilo.
