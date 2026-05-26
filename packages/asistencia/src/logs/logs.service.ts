@@ -161,34 +161,35 @@ export class LogsService {
     const allEmpleados = await this.empleadoRepo.find();
     this.logger.log(`reconcileUnmatched: ${allEmpleados.length} empleados en DB`);
 
-    // Índice por (planta, pin) para evitar cruzar empleados de distintas plantas
+    // Índice estrictamente por (planta, pin) — nunca se cruzan plantas
     const plantaPinIndex = new Map<string, EmpleadoEntity>();
-    const pinIndex = new Map<string, EmpleadoEntity>();
     for (const emp of allEmpleados) {
+      if (!emp.planta) continue;
       const norm = this.normalizePin(emp.pin);
-      const variants = [norm, emp.pin, norm.padStart(8, '0')];
-      for (const v of variants) {
-        if (emp.planta) plantaPinIndex.set(`${emp.planta}:${v}`, emp);
-        pinIndex.set(v, emp);
+      for (const v of [norm, emp.pin, norm.padStart(8, '0')]) {
+        plantaPinIndex.set(`${emp.planta}:${v}`, emp);
       }
     }
 
-    this.logger.log(`reconcileUnmatched: índice de pins construido con ${plantaPinIndex.size} entradas por planta`);
+    this.logger.log(`reconcileUnmatched: índice construido con ${plantaPinIndex.size} entradas por planta`);
 
     let matched = 0;
     for (const row of rows) {
+      // Sin planta en el fichaje no hay forma segura de resolver a qué empleado pertenece
+      if (!row.planta) {
+        this.logger.debug(`Fichaje sin planta, PIN="${row.pin}" — omitido`);
+        continue;
+      }
       const key = this.normalizePin(row.pin);
-      // Primero buscar por planta del fichaje, luego fallback a cualquier planta
-      const empleado = (row.planta ? (plantaPinIndex.get(`${row.planta}:${key}`) ?? plantaPinIndex.get(`${row.planta}:${row.pin}`)) : null)
-        ?? pinIndex.get(key)
-        ?? pinIndex.get(row.pin)
-        ?? null;
+      const empleado =
+        plantaPinIndex.get(`${row.planta}:${key}`) ??
+        plantaPinIndex.get(`${row.planta}:${row.pin}`) ??
+        null;
       if (!empleado) {
-        this.logger.debug(`Sin match para PIN="${row.pin}" (normalizado="${key}")`);
+        this.logger.debug(`Sin match para planta="${row.planta}" PIN="${row.pin}"`);
         continue;
       }
       row.empleadoId = empleado.id;
-      if (!row.planta && empleado.planta) row.planta = empleado.planta;
       await this.repo.save(row);
       matched++;
     }
