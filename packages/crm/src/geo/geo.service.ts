@@ -55,7 +55,7 @@ export class GeoService {
     const key = `${query.toLowerCase()}::${limit}`;
     const cached = this.cache.get(key);
     const now = Date.now();
-    if (cached && cached.expiresAt > now) {
+    if (cached && cached.expiresAt > now) {    // 👈 ( "equalsAt" pero seguramente es "expiresAt")
       return cached.data;
     }
 
