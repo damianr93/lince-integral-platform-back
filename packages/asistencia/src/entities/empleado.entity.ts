@@ -12,6 +12,8 @@ export enum Planta {
   VILLA_NUEVA = 'villa_nueva',
 }
 
+// PIN único por planta — distintos relojes pueden reutilizar el mismo número
+@Index('UQ_empleado_pin_planta', ['pin', 'planta'], { unique: true })
 @Entity('asistencia_empleados')
 export class EmpleadoEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -27,7 +29,6 @@ export class EmpleadoEntity {
   dni: string | null;
 
   /** ID numérico registrado en el reloj ZKTeco (campo PIN del dispositivo) */
-  @Index({ unique: true })
   @Column()
   pin: string;
 

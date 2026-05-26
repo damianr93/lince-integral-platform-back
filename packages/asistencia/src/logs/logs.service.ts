@@ -19,6 +19,16 @@ export interface FichajesFilter {
   limit?:      number;
 }
 
+export interface PinSummaryRow {
+  pin: string;
+  planta: Planta;
+  totalFichajes: number;
+  ultimoFichaje: string | null;
+  empleadoId: string | null;
+  empleadoNombre: string | null;
+  empleadoPlanta: Planta | null;
+}
+
 export interface UpdateFichajeInput {
   estado?: EstadoFichaje;
   tiempo?: Date;
@@ -148,6 +158,32 @@ export class LogsService {
     return this.repo.save(fichaje);
   }
 
+  async reassignPin(
+    pin: string,
+    planta: Planta,
+    empleadoId: string | null,
+  ): Promise<{ updated: number }> {
+    if (empleadoId) {
+      const emp = await this.empleadoRepo.findOne({ where: { id: empleadoId } });
+      if (!emp) throw new NotFoundException('Empleado no encontrado');
+      if (emp.planta !== planta) {
+        throw new BadRequestException(
+          `El empleado ${emp.firstName} ${emp.lastName} pertenece a ${emp.planta}, no a ${planta}`,
+        );
+      }
+    }
+    const normalized = this.normalizePin(pin);
+    const candidates = Array.from(new Set([pin, normalized, normalized.padStart(8, '0')]));
+    const result = await this.repo
+      .createQueryBuilder()
+      .update(FichajeEntity)
+      .set({ empleadoId })
+      .where('pin IN (:...pins)', { pins: candidates })
+      .andWhere('planta = :planta', { planta })
+      .execute();
+    return { updated: result.affected ?? 0 };
+  }
+
   async reconcileUnmatched(limit = 2000): Promise<{ scanned: number; matched: number }> {
     const rows = await this.repo
       .createQueryBuilder('f')
@@ -202,6 +238,59 @@ export class LogsService {
     const trimmed = pin.trim();
     const withoutLeadingZeros = trimmed.replace(/^0+/, '');
     return withoutLeadingZeros.length > 0 ? withoutLeadingZeros : '0';
+  }
+
+  async getPinesSummary(): Promise<PinSummaryRow[]> {
+    const rows: Array<{
+      pin: string;
+      planta: string;
+      total: number;
+      ultimo: Date;
+      empleado_id: string | null;
+      first_name: string | null;
+      last_name: string | null;
+      empleado_planta: string | null;
+    }> = await this.repo.query(`
+      WITH ranked AS (
+        SELECT
+          pin,
+          planta,
+          empleado_id,
+          COUNT(*)::int               AS total,
+          MAX(tiempo)                 AS ultimo,
+          ROW_NUMBER() OVER (
+            PARTITION BY pin, planta
+            ORDER BY COUNT(*) DESC, MAX(tiempo) DESC
+          ) AS rn
+        FROM asistencia_fichajes
+        WHERE planta IS NOT NULL
+        GROUP BY pin, planta, empleado_id
+      )
+      SELECT
+        r.pin,
+        r.planta::text,
+        r.total,
+        r.ultimo,
+        r.empleado_id,
+        e.first_name,
+        e.last_name,
+        e.planta::text AS empleado_planta
+      FROM ranked r
+      LEFT JOIN asistencia_empleados e ON r.empleado_id = e.id
+      WHERE r.rn = 1
+      ORDER BY r.planta, r.pin
+    `);
+
+    return rows.map((r) => ({
+      pin: r.pin,
+      planta: r.planta as Planta,
+      totalFichajes: r.total,
+      ultimoFichaje: r.ultimo ? r.ultimo.toISOString() : null,
+      empleadoId: r.empleado_id ?? null,
+      empleadoNombre:
+        r.first_name && r.last_name ? `${r.first_name} ${r.last_name}` : null,
+      empleadoPlanta: (r.empleado_planta as Planta | null) ?? null,
+    }));
   }
 
   async findToday(planta?: Planta): Promise<FichajeEntity[]> {

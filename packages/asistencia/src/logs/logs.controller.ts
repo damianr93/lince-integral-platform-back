@@ -4,6 +4,7 @@ import { Planta } from '../entities/empleado.entity';
 import { EstadoFichaje, FichajeEntity } from '../entities/fichaje.entity';
 import { LogsService } from './logs.service';
 import { UpdateFichajeDto } from './dto/update-fichaje.dto';
+import { ReassignPinDto } from './dto/reassign-pin.dto';
 
 const AR_TZ = 'America/Argentina/Buenos_Aires';
 
@@ -120,8 +121,18 @@ export class LogsController {
     return this.serializeFichaje(updated);
   }
 
+  @Get('pines-summary')
+  getPinesSummary() {
+    return this.service.getPinesSummary();
+  }
+
   @Post('reconcile-unmatched')
   reconcileUnmatched(@Query('limit') limit?: string) {
     return this.service.reconcileUnmatched(limit ? Number(limit) : undefined);
+  }
+
+  @Post('reassign-pin')
+  reassignPin(@Body() dto: ReassignPinDto) {
+    return this.service.reassignPin(dto.pin, dto.planta, dto.empleadoId ?? null);
   }
 }

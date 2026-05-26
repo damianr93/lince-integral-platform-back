@@ -2,32 +2,9 @@ import { ConflictException, Injectable, Logger, NotFoundException } from '@nestj
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EmpleadoEntity, Planta } from '../entities/empleado.entity';
+import { FichajeEntity } from '../entities/fichaje.entity';
 import { CreateEmpleadoDto } from './dto/create-empleado.dto';
 import { UpdateEmpleadoDto } from './dto/update-empleado.dto';
-
-const VILLA_NUEVA_SEED: { pin: string; firstName: string; lastName: string }[] = [
-  { pin: '3',  firstName: 'Ramiro',         lastName: 'Alaniz' },
-  { pin: '11', firstName: 'Maria Celeste',  lastName: 'Almada' },
-  { pin: '7',  firstName: 'Julieta',        lastName: 'Calderon' },
-  { pin: '21', firstName: 'Antonella Lucia',lastName: 'Corna' },
-  { pin: '6',  firstName: 'Dalia',          lastName: 'Duriavichi' },
-  { pin: '17', firstName: 'Ezequiel',       lastName: 'Fassi' },
-  { pin: '9',  firstName: 'Gabriel',        lastName: 'Fernandez' },
-  { pin: '2',  firstName: 'Leila',          lastName: 'Gasull' },
-  { pin: '10', firstName: 'Luis',           lastName: 'Haedo' },
-  { pin: '12', firstName: 'Luis',           lastName: 'Lujan' },
-  { pin: '15', firstName: 'Florencia',      lastName: 'Micelli' },
-  { pin: '1',  firstName: 'Micaela',        lastName: 'Negro' },
-  { pin: '16', firstName: 'Omar',           lastName: 'Paviglianti' },
-  { pin: '14', firstName: 'Jose',           lastName: 'Paz' },
-  { pin: '5',  firstName: 'Luciana',        lastName: 'Rivera' },
-  { pin: '19', firstName: 'Damian',         lastName: 'Rodriguez' },
-  { pin: '8',  firstName: 'Simon',          lastName: 'Santa' },
-  { pin: '18', firstName: 'Juan Cruz',      lastName: 'Sarno Finelli' },
-  { pin: '13', firstName: 'Pablo',          lastName: 'Segura' },
-  { pin: '20', firstName: 'Yoana Maricel',  lastName: 'Serrano' },
-  { pin: '4',  firstName: 'Florencia',      lastName: 'Vottero' },
-];
 
 @Injectable()
 export class EmployeesService {
@@ -36,6 +13,8 @@ export class EmployeesService {
   constructor(
     @InjectRepository(EmpleadoEntity)
     private readonly repo: Repository<EmpleadoEntity>,
+    @InjectRepository(FichajeEntity)
+    private readonly fichajes: Repository<FichajeEntity>,
   ) {}
 
   async findAll(planta?: Planta, soloActivos = false): Promise<EmpleadoEntity[]> {
@@ -51,59 +30,60 @@ export class EmployeesService {
     return emp;
   }
 
-  async findByPin(pin: string): Promise<EmpleadoEntity | null> {
-    return this.repo.findOne({ where: { pin: this.normalizePin(pin) } });
-  }
-
   async create(dto: CreateEmpleadoDto): Promise<EmpleadoEntity> {
     const normalizedPin = this.normalizePin(dto.pin);
-    const existing = await this.findByPinAnyVariant(normalizedPin);
-    if (existing) throw new ConflictException(`El PIN ${dto.pin} ya está asignado a otro empleado`);
-    return this.repo.save(this.repo.create({ ...dto, pin: normalizedPin, activo: dto.activo ?? true }));
+    const existing = await this.findByPinPlanta(normalizedPin, dto.planta);
+    if (existing) throw new ConflictException(`El PIN ${dto.pin} ya está asignado a otro empleado en ${dto.planta}`);
+    const saved = await this.repo.save(this.repo.create({ ...dto, pin: normalizedPin, activo: dto.activo ?? true }));
+    await this.linkOrphanFichajes(saved);
+    return saved;
   }
 
   async update(id: string, dto: UpdateEmpleadoDto): Promise<EmpleadoEntity> {
     const emp = await this.findOne(id);
     if (dto.pin && dto.pin !== emp.pin) {
       const normalizedPin = this.normalizePin(dto.pin);
-      const conflict = await this.findByPinAnyVariant(normalizedPin);
-      if (conflict) throw new ConflictException(`El PIN ${dto.pin} ya está asignado a otro empleado`);
+      const targetPlanta = dto.planta ?? emp.planta;
+      const conflict = await this.findByPinPlanta(normalizedPin, targetPlanta);
+      if (conflict && conflict.id !== id) throw new ConflictException(`El PIN ${dto.pin} ya está asignado a otro empleado en ${targetPlanta}`);
       dto.pin = normalizedPin;
     }
     Object.assign(emp, dto);
-    return this.repo.save(emp);
+    const saved = await this.repo.save(emp);
+    await this.linkOrphanFichajes(saved);
+    return saved;
+  }
+
+  /**
+   * Asocia automáticamente todos los fichajes huérfanos (empleado_id IS NULL) que coincidan
+   * con el PIN+planta del empleado. Compara el PIN ya normalizado para tolerar leading-zeros
+   * (el reloj puede mandar "1", "001", "00000001" — todo eso debe matchear con emp.pin="1").
+   */
+  private async linkOrphanFichajes(emp: EmpleadoEntity): Promise<void> {
+    const normalized = this.normalizePin(emp.pin);
+    const result = await this.fichajes
+      .createQueryBuilder()
+      .update(FichajeEntity)
+      .set({ empleadoId: emp.id })
+      .where('empleado_id IS NULL')
+      .andWhere('planta = :planta', { planta: emp.planta })
+      .andWhere(`regexp_replace(pin, '^0+', '') = :pin`, { pin: normalized })
+      .execute();
+    const updated = result.affected ?? 0;
+    if (updated > 0) {
+      this.logger.log(
+        `linkOrphanFichajes: ${updated} fichaje(s) asociados a ${emp.firstName} ${emp.lastName} (PIN=${normalized}, planta=${emp.planta})`,
+      );
+    } else {
+      this.logger.debug(
+        `linkOrphanFichajes: sin fichajes huérfanos para PIN=${normalized} planta=${emp.planta}`,
+      );
+    }
   }
 
   async remove(id: string): Promise<void> {
     const emp = await this.findOne(id);
     await this.repo.remove(emp);
-  }
-
-  async seedVillaNueva(): Promise<{ created: number; skipped: number }> {
-    let created = 0;
-    let skipped = 0;
-    for (const seed of VILLA_NUEVA_SEED) {
-      const normalizedPin = this.normalizePin(seed.pin);
-      const existing = await this.findByPinAnyVariant(normalizedPin);
-      if (existing) {
-        this.logger.debug(`seedVillaNueva: PIN ${normalizedPin} ya existe (${existing.firstName} ${existing.lastName})`);
-        skipped++;
-        continue;
-      }
-      await this.repo.save(
-        this.repo.create({
-          pin: normalizedPin,
-          firstName: seed.firstName,
-          lastName: seed.lastName,
-          planta: Planta.VILLA_NUEVA,
-          activo: true,
-        }),
-      );
-      this.logger.log(`seedVillaNueva: creado ${seed.firstName} ${seed.lastName} (PIN ${normalizedPin})`);
-      created++;
-    }
-    this.logger.log(`seedVillaNueva: ${created} creados, ${skipped} ya existían`);
-    return { created, skipped };
   }
 
   private normalizePin(pin: string): string {
@@ -112,12 +92,13 @@ export class EmployeesService {
     return withoutLeadingZeros.length > 0 ? withoutLeadingZeros : '0';
   }
 
-  private async findByPinAnyVariant(pin: string): Promise<EmpleadoEntity | null> {
+  private async findByPinPlanta(pin: string, planta: Planta): Promise<EmpleadoEntity | null> {
     const normalized = this.normalizePin(pin);
     const candidates = Array.from(new Set([pin, normalized, normalized.padStart(8, '0')]));
     return this.repo
       .createQueryBuilder('e')
       .where('e.pin IN (:...pins)', { pins: candidates })
+      .andWhere('e.planta = :planta', { planta })
       .getOne();
   }
 }

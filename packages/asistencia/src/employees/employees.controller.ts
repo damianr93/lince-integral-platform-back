@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Delete, Get, Param, ParseUUIDPipe,
+  Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe,
   Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '@lince/auth';
@@ -26,11 +26,6 @@ export class EmployeesController {
     return this.service.findOne(id);
   }
 
-  @Post('seed-villa-nueva')
-  seedVillaNueva() {
-    return this.service.seedVillaNueva();
-  }
-
   @Post()
   create(@Body() dto: CreateEmpleadoDto) {
     return this.service.create(dto);
@@ -42,6 +37,7 @@ export class EmployeesController {
   }
 
   @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.remove(id);
   }
