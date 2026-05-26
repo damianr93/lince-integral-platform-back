@@ -15,28 +15,8 @@ import { CustomerFollowUpService } from '../follow-up/customer-follow-up.service
 import { CustomerStatus } from '../follow-up/follow-up.types';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { normalizeArgentinePhone } from '../utils/phone.utils';
 
-// TODO-6 [MEDIO/DIFÍCIL]: Eliminar código duplicado — normalización de teléfonos.
-//
-// El problema: hay lógica de normalización de teléfonos argentinos escrita
-// tres veces en el proyecto. Código duplicado es un problema porque si hay
-// que corregir un bug o cambiar la lógica, hay que hacerlo en todos los lugares
-// y es fácil olvidarse de uno.
-//
-// Tu tarea:
-//   1. Encontrá las 3 implementaciones (pista: buscá "normalizePhone" y
-//      "normalizeArgentinePhone" en el proyecto con Ctrl+Shift+F).
-//      Están en este archivo, en marketing.service.ts, y acá mismo en
-//      CustomValidators.normalizeArgentinePhone.
-//   2. Compará las implementaciones — ¿hacen lo mismo? ¿hay diferencias?
-//      Analizá cuál es más completa o correcta.
-//   3. Creá una función utilitaria en un archivo separado, por ejemplo:
-//        packages/crm/src/utils/phone.utils.ts
-//      y exportá una función normalizeArgentinePhone(phone: string): string | null
-//   4. Reemplazá los 3 usos por la nueva función importada.
-//
-// No hay un único camino correcto — pensá la API de la función (¿qué recibe,
-// qué devuelve, qué hace si el teléfono es null/undefined?) y justificalo.
 class CustomValidators {
   static validateMongoId(id: string, fieldName = 'id'): string {
     if (!id) {
@@ -60,21 +40,11 @@ class CustomValidators {
 
   static validatePhone(phone: string, fieldName = 'telefono'): string {
     if (!phone) return phone;
-    let cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
-    cleanPhone = CustomValidators.normalizeArgentinePhone(cleanPhone);
+    const cleanPhone = normalizeArgentinePhone(phone) ?? phone;
     if (!/^\d{8,15}$/.test(cleanPhone)) {
       throw new BadRequestException(`El campo '${fieldName}' debe contener entre 8 y 15 dígitos`);
     }
     return cleanPhone;
-  }
-
-  private static normalizeArgentinePhone(phone: string): string {
-    if (phone.startsWith('+549')) return phone.substring(4);
-    if (phone.startsWith('549')) return phone.substring(3);
-    if (phone.startsWith('+54')) return phone.substring(3);
-    if (phone.startsWith('54')) return phone.substring(2);
-    if (phone.startsWith('0')) return phone.substring(1);
-    return phone;
   }
 
   static validateEnum(value: any, validOptions: string[], fieldName: string): string {
@@ -281,33 +251,6 @@ export class CustomersService {
   }
 
   /**
-   * Normaliza números de teléfono argentinos
-   */
-  private normalizeArgentinePhone(phone: string): string {
-    if (!phone) return phone;
-
-    let cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
-
-    if (cleanPhone.startsWith('+549')) {
-      return cleanPhone.substring(4);
-    }
-    if (cleanPhone.startsWith('549')) {
-      return cleanPhone.substring(3);
-    }
-    if (cleanPhone.startsWith('+54')) {
-      return cleanPhone.substring(3);
-    }
-    if (cleanPhone.startsWith('54')) {
-      return cleanPhone.substring(2);
-    }
-    if (cleanPhone.startsWith('0')) {
-      return cleanPhone.substring(1);
-    }
-
-    return cleanPhone;
-  }
-
-  /**
    * Limpia datos del CRM removiendo placeholders y valores inválidos
    */
   private cleanCrmData(value: any): any {
@@ -369,7 +312,6 @@ export class CustomersService {
     if (dto.telefono !== undefined) {
       dto.telefono = this.cleanCrmData(dto.telefono);
       if (dto.telefono) {
-        dto.telefono = this.normalizeArgentinePhone(dto.telefono);
         dto.telefono = CustomValidators.validatePhone(dto.telefono);
       }
     }
