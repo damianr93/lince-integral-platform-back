@@ -1,3 +1,23 @@
+// TODO-3 [FÁCIL]: Extraer los magic numbers del rango de años válidos a constantes.
+//
+// El problema: en el método parseYear() más abajo, aparecen los valores
+// 2000 y 2100 hardcodeados en la condición de validación:
+//
+//   if (!Number.isInteger(parsed) || parsed < 2000 || parsed > 2100)
+//
+// Nadie que lea eso sabe por qué 2000 y por qué 2100 sin contexto.
+// Si el negocio decide que los datos arrancan desde 2024, hay que recordar
+// que existe esta validación y dónde está.
+//
+// Tu tarea:
+//   Definí dos constantes ANTES de la clase, con nombres descriptivos:
+//
+//     const MIN_VALID_YEAR = 2000;
+//     const MAX_VALID_YEAR = 2100;
+//
+//   Luego usalas en parseYear() en lugar de los números literales.
+//
+// Buscá "parseYear" en este archivo con Ctrl+F para encontrar el método.
 import { Controller, Get, Query, Res, SetMetadata, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard, ModuleGuard, RequireModule } from '@lince/auth';

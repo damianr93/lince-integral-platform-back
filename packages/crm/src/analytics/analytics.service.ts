@@ -1,3 +1,23 @@
+// TODO-2 [FÁCIL/MEDIO]: Este servicio usa console.error() en lugar del Logger de NestJS.
+//
+// El problema: en NestJS, console.error() no respeta el sistema de logging
+// de la aplicación — no incluye el nombre del servicio, no se puede
+// silenciar en tests, y no se integra con los transportes de logs de producción.
+//
+// Tu tarea tiene tres pasos:
+//   1. Agregá Logger al import de @nestjs/common:
+//        import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+//
+//   2. Declarar el logger como propiedad privada de la clase (igual que en
+//      CustomersService o MarketingService, buscalos con Ctrl+Shift+F para
+//      ver el patrón exacto):
+//        private readonly logger = new Logger(AnalyticsService.name);
+//
+//   3. Reemplazá TODOS los console.error() del archivo por this.logger.error().
+//      La firma es la misma:
+//        console.error('mensaje', err)  →  this.logger.error('mensaje', err)
+//
+// Hay 11 console.error() en este archivo — buscalos con Ctrl+F.
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { Model } from 'mongoose';
@@ -78,6 +98,21 @@ type LocationReport = {
   }>;
 };
 
+// TODO-1 [FÁCIL]: Extraer el "magic number" de geoFailureTtlMs a una constante con nombre.
+//
+// El problema: 1000 * 60 * 60 * 12 no dice nada a quien lee el código.
+// ¿12 qué? ¿De dónde sale ese 12? Un lector tiene que hacer la cuenta mental.
+//
+// La solución: definí una constante ANTES de la clase, con un nombre que
+// explique qué representa. Por ejemplo:
+//
+//   const TWELVE_HOURS_MS = 1_000 * 60 * 60 * 12;
+//
+// Luego usala en la propiedad:
+//   private readonly geoFailureTtlMs = TWELVE_HOURS_MS;
+//
+// Tip: fijate en geo.service.ts — ya aplicamos este mismo patrón
+// con ONE_HOUR_MS y ONE_DAY_MS. Tomalo de referencia.
 @Injectable()
 export class AnalyticsService {
   private readonly normalizationBatchSize = 80;

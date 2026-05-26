@@ -465,6 +465,33 @@ export class CustomerFollowUpService {
     }
   }
 
+  // TODO-5 [MEDIO/DIFÍCIL]: Eliminar duplicación en la resolución de asesores.
+  //
+  // El problema: la lógica para mapear un asesor (EZEQUIEL, DENIS, MARTIN, JULIAN)
+  // a datos de configuración existe en DOS lugares del proyecto:
+  //
+  //   - Acá: resolveAssigneeEmail() → mapea asesor a email (para notificaciones)
+  //   - marketing.service.ts: resolvePhoneNumberId() → mapea asesor a ID de YCloud
+  //
+  // Ambas funciones leen de ConfigService con las mismas claves de entorno
+  // (CRM_ADVISOR_EZEQUIEL_EMAIL, YCLOUD_PHONE_ID_EZEQUIEL, etc.) y tienen
+  // la misma estructura de mapa con los mismos asesores. Si se agrega un
+  // asesor nuevo, hay que modificar ambos archivos y es fácil olvidarse de uno.
+  //
+  // Tu tarea:
+  //   1. Creá un archivo nuevo: packages/crm/src/utils/advisor.utils.ts
+  //   2. Exportá desde ahí UNA función (o una clase) que reciba el nombre del
+  //      asesor y el ConfigService, y devuelva tanto el email como el phoneNumberId.
+  //      Pensá bien la API: ¿una función que devuelva ambos? ¿dos funciones separadas?
+  //      ¿un objeto con las dos claves? Justificá tu decisión.
+  //   3. Reemplazá resolveAssigneeEmail() en este archivo y resolvePhoneNumberId()
+  //      en marketing.service.ts por llamadas a la nueva función compartida.
+  //
+  // Pista: mirá phone.utils.ts para ver el patrón de cómo exportamos utilidades
+  // compartidas en este proyecto.
+  //
+  // Cuidado: resolveAssigneeEmail tiene lógica de fallback de emails que
+  // resolvePhoneNumberId no tiene. Analizá bien ambas antes de unificarlas.
   private resolveAssigneeEmail(
     assignedTo?: string | null,
   ): { email: string | null; displayName: string } {

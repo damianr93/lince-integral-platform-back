@@ -15,6 +15,29 @@ import { SendSingleDto } from './dto/send-single.dto';
 const BATCH_SIZE = 20;
 const MAX_ATTEMPTS = 3;
 
+// TODO-4 [FÁCIL/MEDIO]: Hay dos límites de consulta hardcodeados en este archivo
+// que deberían ser constantes nombradas, igual que BATCH_SIZE arriba.
+//
+// El problema: en dos métodos de este servicio aparecen números literales
+// como argumento de .limit() sin explicar qué representan ni por qué
+// tienen ese valor:
+//
+//   .limit(200)   ← en getDirectMessages()
+//   .limit(500)   ← en getLogs()
+//
+// Tu tarea:
+//   1. Buscá esos dos usos en este archivo con Ctrl+F ("limit(200)" y "limit(500)").
+//   2. Definí dos constantes acá arriba (junto a BATCH_SIZE y MAX_ATTEMPTS)
+//      con nombres que expliquen qué limitan:
+//
+//        const MAX_DIRECT_MESSAGES = 200;
+//        const MAX_CAMPAIGN_LOGS   = 500;
+//
+//   3. Reemplazá los números literales por las constantes.
+//
+// El criterio para los nombres: alguien que lea el código debe entender
+// qué conjunto de datos limita esa constante, sin tener que buscar el método.
+
 const YCLOUD_ERROR_MESSAGES: Record<string, string> = {
   PARAM_INVALID: 'Caracteres inválidos',
   BALANCE_INSUFFICIENT: 'Fondos insuficientes',
