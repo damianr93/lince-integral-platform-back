@@ -14,7 +14,7 @@ export class FixCrossPlantFichajeAssociations1748217600000 implements MigrationI
             WHERE f.empleado_id = e.id
               AND f.planta IS NOT NULL
               AND e.planta IS NOT NULL
-              AND f.planta != e.planta
+              AND f.planta::text != e.planta::text
         `);
         const affected = Array.isArray(result) ? result[1] : (result?.rowCount ?? result);
         console.log(`FixCrossPlantFichajeAssociations: ${affected} fichajes corregidos`);
