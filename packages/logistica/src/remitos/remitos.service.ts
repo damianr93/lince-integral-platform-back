@@ -79,14 +79,31 @@ export class RemitosService {
     return { items, total, page, pages: Math.ceil(total / limit), limit };
   }
 
-  async findMapa(): Promise<RemitoLogistica[]> {
-    const docs = await this.docRepo.find({
-      where: { type: DocumentType.REMITO },
-      order: { createdAt: 'DESC' },
-    });
+  async findMapa(filters: Partial<FilterRemitosDto> = {}): Promise<RemitoLogistica[]> {
+    const qb = this.docRepo.createQueryBuilder('doc')
+      .where('doc.type = :type', { type: DocumentType.REMITO })
+      .andWhere('doc.latitude IS NOT NULL')
+      .andWhere('doc.longitude IS NOT NULL')
+      .orderBy('doc.createdAt', 'DESC');
 
-    const geoTagged = docs.filter(d => d.latitude !== null && d.longitude !== null);
-    return this.enrichDocs(geoTagged);
+    if (filters.dateFrom) {
+      qb.andWhere('doc.createdAt >= :dateFrom', { dateFrom: new Date(filters.dateFrom) });
+    }
+    if (filters.dateTo) {
+      const to = new Date(filters.dateTo);
+      to.setUTCHours(23, 59, 59, 999);
+      qb.andWhere('doc.createdAt <= :dateTo', { dateTo: to });
+    }
+    if (filters.uploadedByEmail) {
+      const user = await this.userRepo.findOne({ where: { email: filters.uploadedByEmail } });
+      qb.andWhere('doc.uploadedBy = :uploadedBy', { uploadedBy: user?.id ?? 'none' });
+    }
+    if (filters.cliente) {
+      qb.andWhere("doc.extracted_data->>'cliente' ILIKE :cliente", { cliente: `%${filters.cliente}%` });
+    }
+
+    const docs = await qb.getMany();
+    return this.enrichDocs(docs);
   }
 
   async findOne(id: string): Promise<RemitoDetalle> {

@@ -35,4 +35,8 @@ export class FilterRemitosDto {
   @IsOptional()
   @IsString()
   uploadedByEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  cliente?: string;
 }

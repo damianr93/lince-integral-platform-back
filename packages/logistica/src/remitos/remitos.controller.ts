@@ -24,8 +24,8 @@ export class RemitosController {
   }
 
   @Get('mapa')
-  findMapa() {
-    return this.remitosService.findMapa();
+  findMapa(@Query() filters: FilterRemitosDto) {
+    return this.remitosService.findMapa(filters);
   }
 
   @Get(':id')
