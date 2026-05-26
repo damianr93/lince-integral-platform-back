@@ -38,15 +38,6 @@ class CustomValidators {
     return email;
   }
 
-  static validatePhone(phone: string, fieldName = 'telefono'): string {
-    if (!phone) return phone;
-    const cleanPhone = normalizeArgentinePhone(phone) ?? phone;
-    if (!/^\d{8,15}$/.test(cleanPhone)) {
-      throw new BadRequestException(`El campo '${fieldName}' debe contener entre 8 y 15 dígitos`);
-    }
-    return cleanPhone;
-  }
-
   static validateEnum(value: any, validOptions: string[], fieldName: string): string {
     if (!validOptions.includes(value)) {
       throw new BadRequestException(
@@ -312,7 +303,7 @@ export class CustomersService {
     if (dto.telefono !== undefined) {
       dto.telefono = this.cleanCrmData(dto.telefono);
       if (dto.telefono) {
-        dto.telefono = CustomValidators.validatePhone(dto.telefono);
+        dto.telefono = normalizeArgentinePhone(dto.telefono) ?? dto.telefono;
       }
     }
 
