@@ -26,6 +26,7 @@ export class AuthService {
     private readonly config: ConfigService,
   ) {}
 
+  // TODO-10 [MEDIO]: ¿qué pasa si la base de datos está caída cuando alguien intenta hacer login?
   async login(email: string, password: string): Promise<LoginResponse> {
     const user = await this.users.findOne({
       where: { email, active: true },

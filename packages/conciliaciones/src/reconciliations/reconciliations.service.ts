@@ -198,7 +198,7 @@ export class ReconciliationsService {
 
     await this.dataSource.transaction(async (manager) => {
       if (extractLines.length > 0) {
-        await manager.insert(ExtractLineEntity, extractLines as any[]);
+        await manager.insert(ExtractLineEntity, extractLines as any[]); // TODO-8 [MEDIO]: estos arrays ya tienen tipo. ¿el cast es necesario? ¿qué se pierde al usarlo?
       }
       if (systemLines.length > 0) {
         await manager.insert(SystemLineEntity, systemLines as any[]);

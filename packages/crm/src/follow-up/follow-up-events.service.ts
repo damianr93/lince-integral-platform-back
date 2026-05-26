@@ -116,6 +116,8 @@ export class FollowUpEventsService {
       },
     );
 
+    // TODO-9 [MEDIO]: ¿hace falta el doble cast `as unknown as Promise<...>`?
+    // Revisá si `.lean()` de Mongoose acepta un tipo genérico. Si es así, ¿cómo quedaría?
     return this.followUpEventModel.findById(eventId).lean() as unknown as Promise<FollowUpEvent | null>;
   }
 

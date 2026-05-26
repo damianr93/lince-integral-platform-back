@@ -152,6 +152,8 @@ export class RemitosService {
     if (!docs.length) return [];
 
     const userIds = [...new Set(docs.map(d => d.uploadedBy))];
+    // TODO-6 [FÁCIL]: ¿existirá este método en la versión de TypeORM que usamos?
+    // Buscá en la documentación de TypeORM 0.3.x qué reemplaza a findByIds().
     const users   = await this.userRepo.findByIds(userIds);
     const userMap = new Map(users.map(u => [u.id, u]));
 
