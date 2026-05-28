@@ -16,6 +16,8 @@ import { MessagingGateway } from './messaging/messaging.gateway';
 import { MessagePayload } from './messaging/message-channel.interface';
 import { FollowUpEventsService } from './follow-up-events.service';
 import { FollowUpEvent } from './schemas/follow-up-event.schema';
+import { resolveAdvisorConfig } from '../utils/advisor.utils';
+
 
 @Injectable()
 export class CustomerFollowUpService {
@@ -492,56 +494,44 @@ export class CustomerFollowUpService {
   //
   // Cuidado: resolveAssigneeEmail tiene lógica de fallback de emails que
   // resolvePhoneNumberId no tiene. Analizá bien ambas antes de unificarlas.
-  private resolveAssigneeEmail(
-    assignedTo?: string | null,
-  ): { email: string | null; displayName: string } {
-    const normalized = (assignedTo ?? 'SIN_ASIGNAR').toUpperCase();
+private resolveAssigneeEmail(
+  assignedTo?: string | null,
+): { email: string | null; displayName: string } {
+  const normalized = (assignedTo ?? 'SIN_ASIGNAR').toUpperCase();
 
-    const mailerEmail = this.config.get<string>('MAILER_EMAIL', '');
+  const emailEnvMap: Record<string, string> = {
+    EZEQUIEL: 'CRM_ADVISOR_EZEQUIEL_EMAIL',
+    DENIS: 'CRM_ADVISOR_DENIS_EMAIL',
+    MARTIN: 'CRM_ADVISOR_MARTIN_EMAIL',
+    JULIAN: 'CRM_ADVISOR_JULIAN_EMAIL',
+    SIN_ASIGNAR: 'CRM_ADVISOR_SIN_ASIGNAR_EMAIL',
+  };
 
-    const map: Record<string, { email?: string; displayName: string }> = {
-      EZEQUIEL: {
-        email: this.config.get<string>('CRM_ADVISOR_EZEQUIEL_EMAIL', ''),
-        displayName: 'Ezequiel',
-      },
-      DENIS: {
-        email: this.config.get<string>('CRM_ADVISOR_DENIS_EMAIL', ''),
-        displayName: 'Denis',
-      },
-      MARTIN: {
-        email: this.config.get<string>('CRM_ADVISOR_MARTIN_EMAIL', ''),
-        displayName: 'Martín',
-      },
-      JULIAN: {
-        email: this.config.get<string>('CRM_ADVISOR_JULIAN_EMAIL', ''),
-        displayName: 'Julián',
-      },
-      SIN_ASIGNAR: {
-        email: this.config.get<string>('CRM_ADVISOR_SIN_ASIGNAR_EMAIL', ''),
-        displayName: 'equipo comercial',
-      },
-    };
+  const displayNameMap: Record<string, string> = {
+    EZEQUIEL: 'Ezequiel',
+    DENIS: 'Denis',
+    MARTIN: 'Martín',
+    JULIAN: 'Julián',
+    SIN_ASIGNAR: 'equipo comercial',
+  };
 
-    const entry = map[normalized] ?? {
-      email: undefined,
-      displayName: normalized.charAt(0) + normalized.slice(1).toLowerCase(),
-    };
+  const advisorEmail = resolveAdvisorConfig(normalized, emailEnvMap, this.config);
+  const fallbackEmail =
+    advisorEmail ||
+    this.config.get<string>('CRM_ADVISOR_DEFAULT_EMAIL', '') ||
+    this.config.get<string>('CRM_ADVISOR_SIN_ASIGNAR_EMAIL', '') ||
+    this.config.get<string>('MAILER_EMAIL', '') ||
+    null;
 
-    const defaultEmail = this.config.get<string>('CRM_ADVISOR_DEFAULT_EMAIL', '');
-    const sinAsignarEmail = this.config.get<string>('CRM_ADVISOR_SIN_ASIGNAR_EMAIL', '');
+  const displayName = displayNameMap[normalized] ??
+    normalized.charAt(0) + normalized.slice(1).toLowerCase();
 
-    const fallbackEmail =
-      entry.email ||
-      defaultEmail ||
-      sinAsignarEmail ||
-      mailerEmail ||
-      null;
+  return {
+    email: fallbackEmail && fallbackEmail.trim().length > 0 ? fallbackEmail.trim() : null,
+    displayName,
+  };
+}
 
-    return {
-      email: fallbackEmail && fallbackEmail.trim().length > 0 ? fallbackEmail : null,
-      displayName: entry.displayName,
-    };
-  }
 
   private humanizeStatus(status: string | undefined | null): string {
     if (!status) {

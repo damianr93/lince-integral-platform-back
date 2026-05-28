@@ -11,6 +11,8 @@ import { Customer } from '../customers/schemas/customer.schema';
 import { YCloudClient, YCloudError } from './ycloud.client';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { SendSingleDto } from './dto/send-single.dto';
+import { resolveAdvisorConfig } from '../utils/advisor.utils';
+
 
 const BATCH_SIZE = 20;
 const MAX_ATTEMPTS = 3;
@@ -71,16 +73,14 @@ export class MarketingService {
 
   // ─── Advisor → YCloud phoneNumberId ──────────────────────────────────────
 
-  private resolvePhoneNumberId(siguiendo: string): string | null {
-    const key = siguiendo?.toUpperCase();
-    const map: Record<string, string> = {
-      EZEQUIEL: this.config.get<string>('YCLOUD_PHONE_ID_EZEQUIEL', ''),
-      DENIS: this.config.get<string>('YCLOUD_PHONE_ID_DENIS', ''),
-      MARTIN: this.config.get<string>('YCLOUD_PHONE_ID_MARTIN', ''),
-      JULIAN: this.config.get<string>('YCLOUD_PHONE_ID_JULIAN', ''),
-    };
-    const id = map[key];
-    return id && id.trim().length > 0 ? id.trim() : null;
+private resolvePhoneNumberId(siguiendo: string): string | null {
+  return resolveAdvisorConfig(siguiendo, {
+    EZEQUIEL: 'YCLOUD_PHONE_ID_EZEQUIEL',
+    DENIS: 'YCLOUD_PHONE_ID_DENIS',
+    MARTIN: 'YCLOUD_PHONE_ID_MARTIN',
+    JULIAN: 'YCLOUD_PHONE_ID_JULIAN',
+  }, this.config);
+}
   }
 
   // ─── Normalización de teléfono a E.164 ───────────────────────────────────
