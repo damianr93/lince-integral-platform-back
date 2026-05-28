@@ -83,6 +83,9 @@ export class ReportMailerService {
       host: smtpHost,
       port: Number(this.config.get('SMTP_PORT', '587')),
       secure: smtpSecure,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
       auth: {
         user: this.config.get<string>('SMTP_USER', ''),
         pass: this.config.get<string>('SMTP_PASS', ''),
