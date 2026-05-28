@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { buildDataSourceOptions, AreaEntity } from '@lince/database';
 import { AuthModule } from '@lince/auth';
 import { CrmModule } from '@lince/crm';
@@ -19,6 +20,9 @@ import { AreasModule } from './areas/areas.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+
+    // Scheduler global — necesario para que los @Cron de todos los módulos funcionen
+    ScheduleModule.forRoot(),
 
     // TypeORM — conecta a PostgreSQL usando DATABASE_URL
     TypeOrmModule.forRootAsync({

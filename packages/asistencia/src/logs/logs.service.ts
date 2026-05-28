@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { FichajeEntity, EstadoFichaje } from '../entities/fichaje.entity';
 import { EmpleadoEntity, Planta } from '../entities/empleado.entity';
+import { CreateFichajeDto } from './dto/create-fichaje.dto';
 
 const FECHA_YMD = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -111,6 +112,16 @@ export class LogsService {
     return `${yy}-${mm}-${dd}`;
   }
 
+  private previousCalendarDayYmd(ymd: string): string {
+    const [y, m, d] = ymd.split('-').map((s) => parseInt(s, 10));
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() - 1);
+    const yy = dt.getUTCFullYear();
+    const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getUTCDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+  }
+
   private async findAllForCalendarDay(
     filter: FichajesFilter & { fechaDia: string },
   ): Promise<{ items: FichajeEntity[]; total: number }> {
@@ -119,6 +130,13 @@ export class LogsService {
       throw new BadRequestException('fecha debe ser YYYY-MM-DD');
     }
     const finYmd = this.nextCalendarDayYmd(fechaDia);
+    // Turnos que cruzan la medianoche en ambos sentidos:
+    // - Hacia atrás (18:00 del día previo): captura la entrada de un turno noche
+    //   cuya salida cae en fechaDia.
+    // - Hacia adelante (hasta 14:00 del día siguiente): captura la salida que
+    //   cierra un turno noche iniciado en fechaDia.
+    // El frontend imputa cada par al día de salida y muestra los cruces en ambos días.
+    const prevDayYmd = this.previousCalendarDayYmd(fechaDia);
 
     const qb = this.repo
       .createQueryBuilder('f')
@@ -127,19 +145,35 @@ export class LogsService {
 
     this.applyCommonFichajesFilters(qb, filter);
 
-    // `tiempo` se guarda como instante UTC; RRHH filtra por día calendario Argentina.
     qb.andWhere(
       "f.tiempo >= (:dayStart::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')" +
         " AND f.tiempo < (:dayEnd::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')",
       {
-        dayStart: `${fechaDia} 00:00:00`,
-        dayEnd: `${finYmd} 00:00:00`,
+        dayStart: `${prevDayYmd} 18:00:00`,
+        dayEnd: `${finYmd} 14:00:00`,
       },
     );
 
     const maxRows = 10000;
     const [items, total] = await qb.take(maxRows).getManyAndCount();
     return { items, total };
+  }
+
+  async deleteById(id: string): Promise<void> {
+    const fichaje = await this.repo.findOne({ where: { id } });
+    if (!fichaje) throw new NotFoundException('Fichaje no encontrado');
+    await this.repo.remove(fichaje);
+  }
+
+  async create(dto: CreateFichajeDto): Promise<FichajeEntity> {
+    const fichaje = this.repo.create({
+      pin: dto.pin,
+      planta: dto.planta,
+      estado: dto.estado,
+      tiempo: new Date(dto.tiempo),
+      empleadoId: dto.empleadoId ?? null,
+    });
+    return this.repo.save(fichaje);
   }
 
   async updateById(id: string, input: UpdateFichajeInput): Promise<FichajeEntity> {

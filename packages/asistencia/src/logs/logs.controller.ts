@@ -1,10 +1,11 @@
-import { Controller, Get, Param, ParseUUIDPipe, Patch, Query, UseGuards, Body, Post } from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Query, UseGuards, Body, Post } from '@nestjs/common';
 import { JwtAuthGuard } from '@lince/auth';
 import { Planta } from '../entities/empleado.entity';
 import { EstadoFichaje, FichajeEntity } from '../entities/fichaje.entity';
 import { LogsService } from './logs.service';
 import { UpdateFichajeDto } from './dto/update-fichaje.dto';
 import { ReassignPinDto } from './dto/reassign-pin.dto';
+import { CreateFichajeDto } from './dto/create-fichaje.dto';
 
 const AR_TZ = 'America/Argentina/Buenos_Aires';
 
@@ -106,6 +107,18 @@ export class LogsController {
       limit: limitNum,
       pages,
     };
+  }
+
+  @Post()
+  async create(@Body() dto: CreateFichajeDto) {
+    const created = await this.service.create(dto);
+    return this.serializeFichaje(created);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  async deleteById(@Param('id', ParseUUIDPipe) id: string) {
+    await this.service.deleteById(id);
   }
 
   @Patch(':id')

@@ -116,6 +116,7 @@ export class ReportMailerService {
 
   private async fetchFichajesForDay(ymd: string): Promise<Fichaje[]> {
     const [y, m, d] = ymd.split('-').map(Number);
+
     const next = new Date(Date.UTC(y, m - 1, d));
     next.setUTCDate(next.getUTCDate() + 1);
     const nextYmd = [
@@ -124,13 +125,22 @@ export class ReportMailerService {
       String(next.getUTCDate()).padStart(2, '0'),
     ].join('-');
 
+    // Incluir turnos nocturnos: entradas desde las 18:00 del día anterior
+    const prev = new Date(Date.UTC(y, m - 1, d));
+    prev.setUTCDate(prev.getUTCDate() - 1);
+    const prevYmd = [
+      prev.getUTCFullYear(),
+      String(prev.getUTCMonth() + 1).padStart(2, '0'),
+      String(prev.getUTCDate()).padStart(2, '0'),
+    ].join('-');
+
     const rows = await this.fichajeRepo
       .createQueryBuilder('f')
       .leftJoinAndSelect('f.empleado', 'e')
       .where(
         "f.tiempo >= (:dayStart::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')" +
         " AND f.tiempo < (:dayEnd::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires')",
-        { dayStart: `${ymd} 00:00:00`, dayEnd: `${nextYmd} 00:00:00` },
+        { dayStart: `${prevYmd} 18:00:00`, dayEnd: `${nextYmd} 00:00:00` },
       )
       .orderBy('f.tiempo', 'ASC')
       .getMany();

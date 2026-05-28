@@ -1,12 +1,18 @@
-import { Controller, Get, Param, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '@lince/auth';
 import { ReportsService } from './reports.service';
+import { ReportMailerService } from './report-mailer.service';
 import { Planta } from '../entities/empleado.entity';
+
+const FECHA_YMD = /^\d{4}-\d{2}-\d{2}$/;
 
 @UseGuards(JwtAuthGuard)
 @Controller('asistencia/reports')
 export class ReportsController {
-  constructor(private readonly service: ReportsService) {}
+  constructor(
+    private readonly service: ReportsService,
+    private readonly mailer: ReportMailerService,
+  ) {}
 
   /** GET /api/asistencia/reports/present-now?planta=tucuman */
   @Get('present-now')
@@ -41,6 +47,17 @@ export class ReportsController {
     @Query('limit') limit?: number,
   ) {
     return this.service.getEmployeeHistory(id, limit);
+  }
+
+  /** POST /api/asistencia/reports/send-daily?ymd=2026-05-27 — disparo manual del reporte */
+  @Post('send-daily')
+  async sendDailyReport(@Query('ymd') ymd?: string) {
+    const target = ymd?.trim() ?? '';
+    if (!FECHA_YMD.test(target)) {
+      throw new BadRequestException('ymd debe ser YYYY-MM-DD');
+    }
+    await this.mailer.sendDailyReport(target);
+    return { sent: true, ymd: target };
   }
 
   /** GET /api/asistencia/reports/employee/:id/range?desde=2026-04-01&hasta=2026-04-30&horasEsperadasPorDia=9 */
