@@ -72,6 +72,7 @@ export class ReportMailerService {
       this.logger.warn('SMTP_HOST no configurado — reporte no enviado');
       return;
     }
+    this.logger.log(`SMTP config: host=${smtpHost} port=${this.config.get('SMTP_PORT')} secure=${this.config.get('SMTP_SECURE')} user=${this.config.get('SMTP_USER')}`);
 
     const fichajes = await this.fetchFichajesForDay(ymd);
     const aggs = this.buildEmployeeDayAggregates(fichajes);
