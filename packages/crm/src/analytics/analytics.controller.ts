@@ -26,6 +26,10 @@ import { AnalyticsService } from './analytics.service';
 
 export const IS_PUBLIC_KEY = 'IS_PUBLIC_KEY';
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+  
+const MAX_VALID_YEAR = 2100;
+const MIN_VALID_YEAR = 2000;
+
 
 type LocationFilters = {
   year?: number;
@@ -145,12 +149,14 @@ export class AnalyticsController {
       paises: parseList(query.paises),
       zonas: parseList(query.zonas),
     };
+    
   }
+  
 
   private parseYear(value?: string): number | undefined {
     if (!value) return undefined;
     const parsed = Number(value);
-    if (!Number.isInteger(parsed) || parsed < 2000 || parsed > 2100) {
+    if (!Number.isInteger(parsed) || parsed < MIN_VALID_YEAR|| parsed > MAX_VALID_YEAR) {
       return undefined;
     }
     return parsed;

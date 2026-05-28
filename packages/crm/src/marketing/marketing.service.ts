@@ -15,6 +15,9 @@ import { SendSingleDto } from './dto/send-single.dto';
 const BATCH_SIZE = 20;
 const MAX_ATTEMPTS = 3;
 
+const MAX_DIRECT_MESSAGES = 200;
+const MAX_CAMPAIGN_LOGS   = 500;
+
 // TODO-4 [FÁCIL/MEDIO]: Hay dos límites de consulta hardcodeados en este archivo
 // que deberían ser constantes nombradas, igual que BATCH_SIZE arriba.
 //
@@ -276,7 +279,7 @@ export class MarketingService {
   }
 
   async getDirectMessages(): Promise<DirectMessage[]> {
-    return this.directMessageModel.find().sort({ createdAt: -1 }).limit(200).exec();
+    return this.directMessageModel.find().sort({ createdAt: -1 }).limit(MAX_DIRECT_MESSAGES).exec();
   }
 
   // ─── CRUD campañas ────────────────────────────────────────────────────────
@@ -414,7 +417,7 @@ export class MarketingService {
     return this.logModel
       .find({ campaignId: new Types.ObjectId(campaignId) })
       .sort({ createdAt: -1 })
-      .limit(500)
+      .limit(MAX_CAMPAIGN_LOGS)
       .lean() as unknown as CampaignLog[];
   }
 

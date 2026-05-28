@@ -18,7 +18,7 @@
 //        console.error('mensaje', err)  →  this.logger.error('mensaje', err)
 //
 // Hay 11 console.error() en este archivo — buscalos con Ctrl+F.
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { Model } from 'mongoose';
 import { Customer } from '../customers/schemas/customer.schema';
@@ -113,13 +113,20 @@ type LocationReport = {
 //
 // Tip: fijate en geo.service.ts — ya aplicamos este mismo patrón
 // con ONE_HOUR_MS y ONE_DAY_MS. Tomalo de referencia.
+
+const TWELVE_HOURS_MS = 1_000 * 60 * 60 * 12;
+
+
 @Injectable()
 export class AnalyticsService {
+
+
+  private readonly logger = new Logger(AnalyticsService.name);
   private readonly normalizationBatchSize = 80;
   private readonly normalizationConcurrency = 2;
   private readonly normalizationMaxBatches = 10;
   private readonly geoFailureCache = new Map<string, number>();
-  private readonly geoFailureTtlMs = 1000 * 60 * 60 * 12;
+  private readonly geoFailureTtlMs = TWELVE_HOURS_MS;
 
   constructor(
     @InjectModel('Customer')
@@ -218,7 +225,7 @@ export class AnalyticsService {
 
       return { totalContacts, totalReconsultas, firstTimeContacts, byChannel };
     } catch (err) {
-      console.error('Error en AnalyticsService.totales:', err);
+      this.logger.error('Error en AnalyticsService.totales:', err);
       throw new InternalServerErrorException('Error al obtener totales de clientes');
     }
   }
@@ -291,7 +298,7 @@ export class AnalyticsService {
       }
       return points;
     } catch (err) {
-      console.error('Error en AnalyticsService.evolution:', err);
+      this.logger.error('Error en AnalyticsService.evolution:', err);
       throw new InternalServerErrorException('Error al obtener evolución de clientes');
     }
   }
@@ -350,7 +357,7 @@ export class AnalyticsService {
       }
       return comparison;
     } catch (err) {
-      console.error('Error en AnalyticsService.yearlyComparison:', err);
+     this.logger.error('Error en AnalyticsService.yearlyComparison:', err);
       throw new InternalServerErrorException('Error al obtener comparación anual');
     }
   }
@@ -389,7 +396,7 @@ export class AnalyticsService {
 
       return result;
     } catch (err) {
-      console.error('Error en AnalyticsService.demandOfProduct:', err);
+      this.logger.error('Error en AnalyticsService.demandOfProduct:', err);
       throw new InternalServerErrorException('Error al obtener demanda de productos');
     }
   }
@@ -441,7 +448,7 @@ export class AnalyticsService {
 
       return result;
     } catch (err) {
-      console.error('Error en AnalyticsService.purchaseStatus:', err);
+      this.logger.error('Error en AnalyticsService.purchaseStatus:', err);
       throw new InternalServerErrorException('Error al obtener estado de compras');
     }
   }
@@ -491,7 +498,7 @@ export class AnalyticsService {
         notes: event.notes ?? null,
       }));
     } catch (err) {
-      console.error('Error en AnalyticsService.followUpEvents:', err);
+      this.logger.error('Error en AnalyticsService.followUpEvents:', err);
       throw new InternalServerErrorException('Error al obtener eventos de seguimiento');
     }
   }
@@ -500,7 +507,7 @@ export class AnalyticsService {
     try {
       // Ejecutar normalización en background sin bloquear la respuesta
       this.ensureNormalizedLocations(filters).catch((err) => {
-        console.error('Error normalizando ubicaciones en background:', err);
+        this.logger.error('Error normalizando ubicaciones en background:', err);
       });
       const report = await this.buildLocationReport(filters);
       const total = report.total;
@@ -559,7 +566,7 @@ export class AnalyticsService {
         mapPoints,
       };
     } catch (err) {
-      console.error('Error en AnalyticsService.locationSummary:', err);
+      this.logger.error('Error en AnalyticsService.locationSummary:', err);
       throw new InternalServerErrorException('Error al obtener resumen de ubicaciones');
     }
   }
@@ -568,13 +575,13 @@ export class AnalyticsService {
     try {
       // Ejecutar normalización en background sin bloquear la respuesta
       this.ensureNormalizedLocations(filters).catch((err) => {
-        console.error('Error normalizando ubicaciones en background:', err);
+        this.logger.error('Error normalizando ubicaciones en background:', err);
       });
       const report = await this.buildLocationReport(filters);
       const provinces = this.buildHeatmapProvinces(report);
       return { total: report.total, provinces };
     } catch (err) {
-      console.error('Error en AnalyticsService.locationHeatmap:', err);
+      this.logger.error('Error en AnalyticsService.locationHeatmap:', err);
       throw new InternalServerErrorException('Error al obtener mapa de calor');
     }
   }
@@ -582,7 +589,7 @@ export class AnalyticsService {
   async locationReportPdf(filters: LocationFilters): Promise<Buffer> {
     // Ejecutar normalización en background sin bloquear la generación del PDF
     this.ensureNormalizedLocations(filters).catch((err) => {
-      console.error('Error normalizando ubicaciones en background:', err);
+      this.logger.error('Error normalizando ubicaciones en background:', err);
     });
     const report = await this.buildLocationReport(filters);
     const clients = await this.findClientsForReport(filters);
