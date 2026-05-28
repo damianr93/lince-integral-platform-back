@@ -36,14 +36,21 @@ export class AdmsController {
     @Req()   req:   Request,
     @Res()   res:   Response,
   ): Promise<void> {
-    await this.logRequest(req, query, null);
-
     const sn = query['SN'] ?? query['sn'];
     this.logger.log(`[HANDSHAKE] SN=${sn}`);
 
     const body = this.adms.buildHandshakeResponse(sn);
-    res.setHeader('Content-Type', 'text/plain');
-    res.send(body);
+    res
+      .setHeader('Content-Type', 'text/plain')
+      .setHeader('Connection', 'close')
+      .setHeader('Content-Length', Buffer.byteLength(body, 'utf-8'))
+      .send(body);
+
+    setImmediate(() => {
+      this.logRequest(req, query, null).catch((err: unknown) =>
+        this.logger.error(`[HANDSHAKE] Error guardando raw log: ${(err as Error).message}`),
+      );
+    });
   }
 
   // ── POST /iclock/cdata — Fichajes ──────────────────────────────────────────
@@ -55,22 +62,30 @@ export class AdmsController {
     @Res()   res:   Response,
   ): Promise<void> {
     const rawBody = this.getRawBody(req);
-    await this.logRequest(req, query, rawBody);
-
     const sn = query['SN'] ?? query['sn'];
     this.logger.log(`[PUNCHES] SN=${sn} | ${rawBody?.length ?? 0} bytes`);
 
-    if (rawBody) {
-      try {
-        const saved = await this.adms.processPunchPayload(rawBody, sn);
-        this.logger.log(`[PUNCHES] Guardados: ${saved} fichajes`);
-      } catch (err) {
-        this.logger.error(`[PUNCHES] Error al procesar payload: ${(err as Error).message}`);
-      }
-    }
+    res
+      .setHeader('Content-Type', 'text/plain')
+      .setHeader('Connection', 'close')
+      .setHeader('Content-Length', 2)
+      .send('OK');
 
-    res.setHeader('Content-Type', 'text/plain');
-    res.send('OK');
+    setImmediate(() => {
+      this.logRequest(req, query, rawBody)
+        .catch((err: unknown) =>
+          this.logger.error(`[PUNCHES] Error guardando raw log: ${(err as Error).message}`),
+        )
+        .then(() => {
+          if (!rawBody) return;
+          return this.adms.processPunchPayload(rawBody, sn).then((saved) => {
+            this.logger.log(`[PUNCHES] Guardados: ${saved} fichajes`);
+          });
+        })
+        .catch((err: unknown) =>
+          this.logger.error(`[PUNCHES] Error al procesar payload: ${(err as Error).message}`),
+        );
+    });
   }
 
   // ── GET /iclock/getrequest — Heartbeat ────────────────────────────────────
@@ -82,8 +97,11 @@ export class AdmsController {
   ): Promise<void> {
     const sn = query['SN'] ?? query['sn'];
     this.logger.debug(`[HEARTBEAT] SN=${sn}`);
-    res.setHeader('Content-Type', 'text/plain');
-    res.send('OK');
+    res
+      .setHeader('Content-Type', 'text/plain')
+      .setHeader('Connection', 'close')
+      .setHeader('Content-Length', 2)
+      .send('OK');
   }
 
   // ── POST /iclock/devicecmd — Confirmación de comandos ─────────────────────
@@ -95,11 +113,19 @@ export class AdmsController {
     @Res()   res:   Response,
   ): Promise<void> {
     const rawBody = this.getRawBody(req);
-    await this.logRequest(req, query, rawBody);
     const sn = query['SN'] ?? query['sn'];
     this.logger.debug(`[DEVICECMD] SN=${sn}`);
-    res.setHeader('Content-Type', 'text/plain');
-    res.send('OK');
+    res
+      .setHeader('Content-Type', 'text/plain')
+      .setHeader('Connection', 'close')
+      .setHeader('Content-Length', 2)
+      .send('OK');
+
+    setImmediate(() => {
+      this.logRequest(req, query, rawBody).catch((err: unknown) =>
+        this.logger.error(`[DEVICECMD] Error guardando raw log: ${(err as Error).message}`),
+      );
+    });
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

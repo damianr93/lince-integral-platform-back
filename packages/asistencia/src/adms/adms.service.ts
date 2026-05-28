@@ -102,7 +102,7 @@ export class AdmsService {
     this.logger.log(`Handshake recibido — SN: ${sn ?? 'desconocido'}, planta: ${plant ?? 'no mapeada'}`);
     return [
       'OK',
-      'Realtime=1',
+      'Realtime=0',
       'Stamp=9999',
       'OpStamp=9999',
       'ErrorDelay=30',
