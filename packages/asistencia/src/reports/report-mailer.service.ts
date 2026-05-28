@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import ExcelJS from 'exceljs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -67,22 +67,41 @@ export class ReportMailerService {
       this.logger.warn('ASISTENCIA_REPORT_TO no configurado — reporte no enviado');
       return;
     }
-    const apiKey = this.config.get<string>('RESEND_API_KEY');
-    if (!apiKey) {
-      this.logger.warn('RESEND_API_KEY no configurado — reporte no enviado');
+    const smtpHost = this.config.get<string>('SMTP_HOST');
+    if (!smtpHost) {
+      this.logger.warn('SMTP_HOST no configurado — reporte no enviado');
       return;
     }
+    this.logger.log(`SMTP config: host=${smtpHost} port=${this.config.get('SMTP_PORT')} secure=${this.config.get('SMTP_SECURE')} user=${this.config.get('SMTP_USER')}`);
 
     const fichajes = await this.fetchFichajesForDay(ymd);
     const aggs = this.buildEmployeeDayAggregates(fichajes);
     const buffer = await this.buildExcel(ymd, aggs);
     const fechaDisplay = this.formatDateDisplay(ymd);
 
-    const from = this.config.get<string>('ASISTENCIA_REPORT_FROM', 'Lince <onboarding@resend.dev>');
+    const smtpSecure = this.config.get<string>('SMTP_SECURE', 'false') === 'true';
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: Number(this.config.get('SMTP_PORT', '587')),
+      secure: smtpSecure,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
+      auth: {
+        user: this.config.get<string>('SMTP_USER', ''),
+        pass: this.config.get<string>('SMTP_PASS', ''),
+      },
+    });
+
+    const fromName  = this.config.get<string>('MAIL_FROM_NAME', '');
+    const fromEmail = this.config.get<string>('MAIL_FROM_EMAIL') || this.config.get<string>('SMTP_USER', '');
+    const from =
+      this.config.get<string>('ASISTENCIA_REPORT_FROM') ||
+      (fromName ? `${fromName} <${fromEmail}>` : fromEmail);
+
     const recipients = to.split(',').map((e) => e.trim()).filter(Boolean);
 
-    const resend = new Resend(apiKey);
-    const { error } = await resend.emails.send({
+    await transporter.sendMail({
       from,
       to: recipients,
       subject: `Reporte de fichajes RRHH — ${fechaDisplay}`,
@@ -90,12 +109,9 @@ export class ReportMailerService {
       attachments: [{
         filename: `fichajes-${ymd}.xlsx`,
         content: buffer,
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       }],
     });
-
-    if (error) {
-      throw new Error(`Resend error: ${error.message}`);
-    }
 
     this.logger.log(`Reporte de fichajes ${ymd} enviado a: ${recipients.join(', ')} (${aggs.length} empleados)`);
   }
