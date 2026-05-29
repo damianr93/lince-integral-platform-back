@@ -72,19 +72,17 @@ export class AdmsController {
       .send('OK');
 
     setImmediate(() => {
-      this.logRequest(req, query, rawBody)
-        .catch((err: unknown) =>
-          this.logger.error(`[PUNCHES] Error guardando raw log: ${(err as Error).message}`),
-        )
-        .then(() => {
-          if (!rawBody) return;
-          return this.adms.processPunchPayload(rawBody, sn).then((saved) => {
-            this.logger.log(`[PUNCHES] Guardados: ${saved} fichajes`);
-          });
-        })
-        .catch((err: unknown) =>
-          this.logger.error(`[PUNCHES] Error al procesar payload: ${(err as Error).message}`),
-        );
+      this.logRequest(req, query, rawBody).catch((err: unknown) =>
+        this.logger.error(`[PUNCHES] Error guardando raw log: ${(err as Error).message}`),
+      );
+
+      if (rawBody) {
+        this.adms.processPunchPayload(rawBody, sn)
+          .then((saved) => this.logger.log(`[PUNCHES] Guardados: ${saved} fichajes`))
+          .catch((err: unknown) =>
+            this.logger.error(`[PUNCHES] Error al procesar payload: ${(err as Error).message}`),
+          );
+      }
     });
   }
 
