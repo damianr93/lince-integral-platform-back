@@ -10,9 +10,16 @@ export class ReportSchedulerService {
 
   constructor(private readonly mailer: ReportMailerService) {}
 
-  // Lunes a viernes a las 07:30 (hora Argentina)
-  @Cron('30 7 * * 1-5', { timeZone: AR_TZ })
+  // DESHABILITADO: Railway bloquea puertos SMTP salientes (465, 587) en planes no-Pro,
+  // por lo que nodemailer no puede conectarse a ningún servidor de correo desde Railway.
+  // Para reactivar: migrar a AWS/VPS (donde SMTP saliente está permitido) o cambiar
+  // el mailer a un servicio HTTP como Resend (resend.com) o SendGrid.
+  // Ver report-mailer.service.ts — la lógica de construcción del Excel y envío ya está lista.
+  //
+  // @Cron('30 7 * * 1-5', { timeZone: AR_TZ })
+  // async enviarReporteDiario(): Promise<void> {
   async enviarReporteDiario(): Promise<void> {
+    return;
     const ymd = this.previousBusinessDay();
     this.logger.log(`Enviando reporte de fichajes del día hábil anterior: ${ymd}`);
     try {
