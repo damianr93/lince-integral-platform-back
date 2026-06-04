@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { DocumentEntity, StorageService, UserEntity } from '@lince/database';
 import { DocumentType } from '@lince/types';
 import { FilterRemitosDto } from './dto/filter-remitos.dto';
@@ -154,8 +154,9 @@ export class RemitosService {
     const userIds = [...new Set(docs.map(d => d.uploadedBy))];
     // TODO-6 [FÁCIL]: ¿existirá este método en la versión de TypeORM que usamos?
     // Buscá en la documentación de TypeORM 0.3.x qué reemplaza a findByIds().
-    const users   = await this.userRepo.findByIds(userIds);
-    const userMap = new Map(users.map(u => [u.id, u]));
+    const users   = await this.userRepo.findBy({ id: In(userIds) });
+  
+    const userMap = new Map<string, UserEntity>(users.map((u: UserEntity) => [u.id, u]));
 
     return docs.map(doc => {
       const user = userMap.get(doc.uploadedBy);
