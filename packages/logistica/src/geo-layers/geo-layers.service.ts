@@ -44,7 +44,8 @@ export class GeoLayersService {
     if (!point) throw new NotFoundException('Punto geográfico no encontrado');
 
     Object.assign(point, dto);
-    if (dto.descripcion === undefined) point.descripcion = point.descripcion; // TODO-7 [FÁCIL]: ¿esta línea hace algo? Si no, ¿qué debería hacer?
+    point.descripcion = dto.descripcion ?? point.descripcion;
+ // TODO-7 [FÁCIL]: ¿esta línea hace algo? Si no, ¿qué debería hacer?
     return this.repo.save(point);
   }
 
