@@ -184,10 +184,15 @@ export class FollowUpEventsService {
       .find(filter)
       .sort({ scheduledFor: 1 })
       .limit(limit)
-      .lean() as unknown as Promise<FollowUpEvent[]>;
+      .lean<FollowUpEvent[]>()
+  
   }
 
-  async findById(eventId: string): Promise<FollowUpEvent | null> {
-    return this.followUpEventModel.findById(eventId).lean() as unknown as Promise<FollowUpEvent | null>;
-  }
+
+async findById(eventId: string): Promise<FollowUpEvent | null> {
+  return this.followUpEventModel
+    .findById(eventId)
+    .lean<FollowUpEvent | null>();
 }
+}
+
