@@ -2,6 +2,8 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
+   InternalServerErrorException,
+
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -28,20 +30,15 @@ export class AuthService {
 
   // TODO-10 [MEDIO]: ¿qué pasa si la base de datos está caída cuando alguien intenta hacer login?
   async login(email: string, password: string): Promise<LoginResponse> {
-    const user = await this.users.findOne({
-      where: { email, active: true },
-      select: [
-        'id',
-        'email',
-        'name',
-        'area',
-        'globalRole',
-        'modules',
-        'passwordHash',
-        'active',
-        'mustChangePassword',
-      ],
-    });
+    let user;
+    try {
+      user = await this.users.findOne({
+        where: { email, active: true },
+        select: ['id', 'email', 'name', 'area', 'globalRole', 'modules', 'passwordHash', 'active', 'mustChangePassword'],
+      });
+    } catch {
+      throw new InternalServerErrorException('Error al conectar con la base de datos, intentá de nuevo más tarde');
+    }
 
     if (!user) throw new UnauthorizedException('Credenciales incorrectas');
 
